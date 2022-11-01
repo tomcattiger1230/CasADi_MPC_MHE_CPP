@@ -2,7 +2,11 @@
  * @Author: Wei Luo
  * @Date: 2022-10-31 14:49:55
  * @LastEditors: Wei Luo
- * @LastEditTime: 2022-11-01 19:28:38
+<<<<<<< HEAD
+ * @LastEditTime: 2022-11-01 19:31:58
+=======
+ * @LastEditTime: 2022-11-01 19:30:03
+>>>>>>> 7ec46095557c63361e782831ca5d7a3a52b25a94
  * @Note: Note
  */
 #include <Eigen/Dense>
