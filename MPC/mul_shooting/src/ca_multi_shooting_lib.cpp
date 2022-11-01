@@ -1,8 +1,8 @@
 /*
  * @Author: Wei Luo
- * @Date: 2022-10-31 14:49:55
+ * @Date: 2022-11-01 18:36:17
  * @LastEditors: Wei Luo
- * @LastEditTime: 2022-11-01 17:35:26
+ * @LastEditTime: 2022-11-01 18:54:18
  * @Note: Note
  */
 #include <Eigen/Dense>
@@ -69,69 +69,69 @@ int main() {
   auto controls = casadi::SX::vertcat({v, omega});
   int num_controls = controls.size().first;
 
-  // for MPC
-  auto U = casadi::SX::sym("U", num_controls, N);
-  auto X = casadi::SX::sym("X", num_states, N + 1);
-  auto P = casadi::SX::sym("P", num_states * 2);
+  // // for MPC
+  // auto U = casadi::SX::sym("U", num_controls, N);
+  // auto X = casadi::SX::sym("X", num_states, N + 1);
+  // auto P = casadi::SX::sym("P", num_states * 2);
 
-  casadi::Function integrator = one_step_integration();
+  // casadi::Function integrator = one_step_integration();
 
-  casadi::DM Q(3, 3);
-  Q(0, 0) = 1.0;
-  Q(1, 1) = 5.0;
-  Q(2, 2) = 0.1;
+  // casadi::DM Q(3, 3);
+  // Q(0, 0) = 1.0;
+  // Q(1, 1) = 5.0;
+  // Q(2, 2) = 0.1;
 
-  casadi::DM R(2, 2);
-  R(0, 0) = 0.5;
-  R(1, 1) = 0.05;
+  // casadi::DM R(2, 2);
+  // R(0, 0) = 0.5;
+  // R(1, 1) = 0.05;
 
-  // cost function
-  casadi::SX obj = 0;
-  // constraints
-  casadi::SX g;
-  g = X(casadi::Slice(), 0) - P(casadi::Slice(0, num_states));
-  g = casadi::SX::reshape(g, -1, 1);
-  //   std::cout << casadi::SX::reshape(X, -1, 1) << std::endl;
-  for (int i = 0; i < N; i++) {
-    std::cout << U.nz(casadi::Slice(i * num_controls, (i + 1) * num_controls))
-              << std::endl;
-    obj = obj +
-          // casadi::SX::mtimes(
-          //     casadi::SX::mtimes(
-          //         (X.nz(casadi::Slice(i * num_states, (i + 1) * num_states)) -
-          //          P.nz(casadi::Slice(num_states, 2 * num_states)))
-          //             .T(),
-          //         Q),
-          //     (X.nz(casadi::Slice(i * num_states, (i + 1) * num_states)) -
-          //      P.nz(casadi::Slice(num_states, 2 * num_states)))) +
-          casadi::SX::mtimes(
-              casadi::SX::mtimes(
-                  (X(casadi::Slice(), i) -
-                   P(casadi::Slice(num_states, 2 * num_states)))
-                      .T(),
-                  Q),
-              (X(casadi::Slice(), i) -
-               P(casadi::Slice(num_states, 2 * num_states)))) +
-          casadi::SX::mtimes(
-              casadi::SX::mtimes(
-                  U(casadi::Slice(), i)
-                      .T(),
-                  R),
-              U(casadi::Slice(), i));
-    std::vector<casadi::SX> input(2);
-    input[0] = X(casadi::Slice(), i);
-    input[1] = U(casadi::Slice(), i);
-    auto x_next_ = integrator(input).at(0) * dT +
-                   X(casadi::Slice(), i);
-    g = casadi::SX::vertcat(
-        {g, x_next_ - X(casadi::Slice(), i+1)});
-  }
-  casadi::SXDict nlp = {
-      {"x", casadi::SX::vertcat({casadi::SX::reshape(X, -1, 1),
-                                 casadi::SX::reshape(U, -1, 1)})},
-      {"f", obj},
-      {"p", P},
-      {"g", g}};
+  // // cost function
+  // casadi::SX obj = 0;
+  // // constraints
+  // casadi::SX g;
+  // g = X(casadi::Slice(), 0) - P(casadi::Slice(0, num_states));
+  // g = casadi::SX::reshape(g, -1, 1);
+  // //   std::cout << casadi::SX::reshape(X, -1, 1) << std::endl;
+  // for (int i = 0; i < N; i++) {
+  //   std::cout << U.nz(casadi::Slice(i * num_controls, (i + 1) * num_controls))
+  //             << std::endl;
+  //   obj = obj +
+  //         // casadi::SX::mtimes(
+  //         //     casadi::SX::mtimes(
+  //         //         (X.nz(casadi::Slice(i * num_states, (i + 1) * num_states)) -
+  //         //          P.nz(casadi::Slice(num_states, 2 * num_states)))
+  //         //             .T(),
+  //         //         Q),
+  //         //     (X.nz(casadi::Slice(i * num_states, (i + 1) * num_states)) -
+  //         //      P.nz(casadi::Slice(num_states, 2 * num_states)))) +
+  //         casadi::SX::mtimes(
+  //             casadi::SX::mtimes(
+  //                 (X(casadi::Slice(), i) -
+  //                  P(casadi::Slice(num_states, 2 * num_states)))
+  //                     .T(),
+  //                 Q),
+  //             (X(casadi::Slice(), i) -
+  //              P(casadi::Slice(num_states, 2 * num_states)))) +
+  //         casadi::SX::mtimes(
+  //             casadi::SX::mtimes(
+  //                 U(casadi::Slice(), i)
+  //                     .T(),
+  //                 R),
+  //             U(casadi::Slice(), i));
+  //   std::vector<casadi::SX> input(2);
+  //   input[0] = X(casadi::Slice(), i);
+  //   input[1] = U(casadi::Slice(), i);
+  //   auto x_next_ = integrator(input).at(0) * dT +
+  //                  X(casadi::Slice(), i);
+  //   g = casadi::SX::vertcat(
+  //       {g, x_next_ - X(casadi::Slice(), i+1)});
+  // }
+  // casadi::SXDict nlp = {
+  //     {"x", casadi::SX::vertcat({casadi::SX::reshape(X, -1, 1),
+  //                                casadi::SX::reshape(U, -1, 1)})},
+  //     {"f", obj},
+  //     {"p", P},
+  //     {"g", g}};
   std::string solver_name = "ipopt";
   casadi::Dict solver_opts;
   solver_opts["ipopt.max_iter"] = 100;
@@ -140,8 +140,11 @@ int main() {
   solver_opts["ipopt.acceptable_tol"] = 1e-8;
   solver_opts["ipopt.acceptable_obj_change_tol"] = 1e-6;
 
+  // casadi::Function solver =
+  //     casadi::nlpsol("nlpsol", solver_name, nlp, solver_opts);
+
   casadi::Function solver =
-      casadi::nlpsol("nlpsol", solver_name, nlp, solver_opts);
+      casadi::nlpsol("nlpso", solver_name, "./lib/robot_mpc.so", solver_opts);
 
   // constraints definition
   std::vector<double> lbg;
@@ -231,11 +234,11 @@ int main() {
     result_u.assign(result_all.begin() + (N + 1) * num_states,
                     result_all.end());
 
-    std::cout<< "result x: "<< result_x << std::endl;
-    std::cout<<
-    "================================================================" <<
-    std::endl;
-    std::cout<< "result u: "<< result_u << std::endl;
+    // std::cout<< "result x: "<< result_x << std::endl;
+    // std::cout<<
+    // "================================================================" <<
+    // std::endl;
+    // std::cout<< "result u: "<< result_u << std::endl;
     auto new_x = shift_movement(dT, time_t, x0, result_u);
 
     // std::cout<< "new_x: "<< new_x << std::endl;
