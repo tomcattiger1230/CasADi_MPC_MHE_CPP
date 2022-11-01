@@ -3,7 +3,7 @@
  * @Date: 2022-10-31 14:49:55
  * @LastEditors: Wei Luo
 <<<<<<< HEAD
- * @LastEditTime: 2022-11-01 19:31:58
+ * @LastEditTime: 2022-11-01 19:34:54
 =======
  * @LastEditTime: 2022-11-01 19:30:03
 >>>>>>> 7ec46095557c63361e782831ca5d7a3a52b25a94
@@ -97,8 +97,8 @@ int main() {
   g = casadi::SX::reshape(g, -1, 1);
   //   std::cout << casadi::SX::reshape(X, -1, 1) << std::endl;
   for (int i = 0; i < N; i++) {
-    std::cout << U.nz(casadi::Slice(i * num_controls, (i + 1) * num_controls))
-              << std::endl;
+    // std::cout << U.nz(casadi::Slice(i * num_controls, (i + 1) * num_controls))
+    //           << std::endl;
     obj = obj +
           // casadi::SX::mtimes(
           //     casadi::SX::mtimes(
@@ -139,7 +139,7 @@ int main() {
   std::string solver_name = "ipopt";
   casadi::Dict solver_opts;
   solver_opts["ipopt.max_iter"] = 100;
-  solver_opts["ipopt.print_level"] = 0;
+  solver_opts["ipopt.print_level"] = 5;
   solver_opts["print_time"] = 0;
   solver_opts["ipopt.acceptable_tol"] = 1e-8;
   solver_opts["ipopt.acceptable_obj_change_tol"] = 1e-6;
@@ -199,7 +199,7 @@ int main() {
 
   double distance_error = 1e4;
   int mpc_iter = 0;
-  double sim_time = 20.0;
+  double sim_time = 6.0;
   int sim_iter = int(sim_time / dT);
   auto start_time = std::chrono::high_resolution_clock::now();
   double time_t = 0.0;
@@ -207,8 +207,8 @@ int main() {
   target_x << xs[0], xs[1], xs[2];
 
   // std::vector<double> time_vector_test;
-  std::cout << casadi::cos(0.785398) << std::endl;
-  std::cout << std::cos(0.785398) << std::endl;
+  // std::cout << casadi::cos(0.785398) << std::endl;
+  // std::cout << std::cos(0.785398) << std::endl;
 
   while (distance_error > 1e-2 && mpc_iter - sim_iter < 0) {
     control_params.clear();
