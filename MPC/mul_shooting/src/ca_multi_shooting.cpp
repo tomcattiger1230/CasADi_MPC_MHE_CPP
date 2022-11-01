@@ -2,11 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2022-10-31 14:49:55
  * @LastEditors: Wei Luo
-<<<<<<< HEAD
- * @LastEditTime: 2022-11-01 19:34:54
-=======
- * @LastEditTime: 2022-11-01 19:30:03
->>>>>>> 7ec46095557c63361e782831ca5d7a3a52b25a94
+ * @LastEditTime: 2022-11-01 21:35:04
  * @Note: Note
  */
 #include <Eigen/Dense>
@@ -138,14 +134,34 @@ int main() {
       {"g", g}};
   std::string solver_name = "ipopt";
   casadi::Dict solver_opts;
+  solver_opts["expand"] = true;
   solver_opts["ipopt.max_iter"] = 100;
-  solver_opts["ipopt.print_level"] = 5;
+  solver_opts["ipopt.print_level"] = 0;
+  // solver_opts["linear_solver"] = "ma57";
   solver_opts["print_time"] = 0;
   solver_opts["ipopt.acceptable_tol"] = 1e-8;
   solver_opts["ipopt.acceptable_obj_change_tol"] = 1e-6;
 
   casadi::Function solver =
       casadi::nlpsol("nlpsol", solver_name, nlp, solver_opts);
+
+  // casadi::Dict solver_opts;
+  // // solver_opts["qpsol"] = "qpoases";
+  // solver_opts["expand"] = false;
+  // solver_opts["max_iter"] = 10;
+  // // opts["verbose"] = true;
+  // // solver_opts["linear_solver"] = "ma57";
+  // solver_opts["hessian_approximation"] = "exact";
+  // // opts["derivative_test"] = "second-order";
+
+  // // Specify QP solver
+  // solver_opts["qpsol"] = "nlpsol";
+  // solver_opts["qpsol_options.nlpsol"] = "ipopt";
+  // solver_opts["qpsol_options.error_on_fail"] = false;
+  // solver_opts["qpsol_options.nlpsol_options.ipopt.print_level"] = 0;
+  // solver_opts["qpsol_options.nlpsol_options.print_time"] = 0;
+  // casadi::Function solver =
+  //     casadi::nlpsol("nlpsol", "sqpmethod", nlp, solver_opts);
 
   // constraints definition
   std::vector<double> lbg;
@@ -165,10 +181,10 @@ int main() {
   for (int i = 0; i < N + 1; i++) {
     lbx.push_back(-2.0);
     lbx.push_back(-2.0);
-    lbx.push_back(-PI);
+    lbx.push_back(-casadi::inf);
     ubx.push_back(2.0);
     ubx.push_back(2.0);
-    ubx.push_back(PI);
+    ubx.push_back(casadi::inf);
   }
 
   for (int i = 0; i < N; i++) {
