@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2022-10-31 14:49:55
  * @LastEditors: Wei Luo
- * @LastEditTime: 2022-11-01 17:35:26
+ * @LastEditTime: 2022-11-01 19:28:38
  * @Note: Note
  */
 #include <Eigen/Dense>
@@ -255,7 +255,7 @@ int main() {
 
   auto stop_time = std::chrono::high_resolution_clock::now();
   auto duration =
-      duration_cast<std::chrono::microseconds>(stop_time - start_time);
+      std::chrono::duration_cast<std::chrono::microseconds>(stop_time - start_time);
   std::cout << "average calculation time for each iteration [s]: "
             << duration.count() / mpc_iter / 1e6 << std::endl;
   return 0;
