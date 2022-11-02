@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2022-10-31 14:49:55
  * @LastEditors: Wei Luo
- * @LastEditTime: 2022-11-02 17:19:57
+ * @LastEditTime: 2022-11-02 17:26:24
  * @Note: Note
  */
 #include <Eigen/Dense>
@@ -145,24 +145,6 @@ int main() {
   casadi::Function solver =
       casadi::nlpsol("nlpsol", solver_name, nlp, solver_opts);
 
-  // casadi::Dict solver_opts;
-  // // solver_opts["qpsol"] = "qpoases";
-  // solver_opts["expand"] = false;
-  // solver_opts["max_iter"] = 10;
-  // // opts["verbose"] = true;
-  // // solver_opts["linear_solver"] = "ma57";
-  // solver_opts["hessian_approximation"] = "exact";
-  // // opts["derivative_test"] = "second-order";
-
-  // // Specify QP solver
-  // solver_opts["qpsol"] = "nlpsol";
-  // solver_opts["qpsol_options.nlpsol"] = "ipopt";
-  // solver_opts["qpsol_options.error_on_fail"] = false;
-  // solver_opts["qpsol_options.nlpsol_options.ipopt.print_level"] = 0;
-  // solver_opts["qpsol_options.nlpsol_options.print_time"] = 0;
-  // casadi::Function solver =
-  //     casadi::nlpsol("nlpsol", "sqpmethod", nlp, solver_opts);
-
   // constraints definition
   std::vector<double> lbg;
   std::vector<double> ubg;
@@ -200,18 +182,8 @@ int main() {
   std::vector<double> init_values;
   std::vector<double> u_init(N * num_controls, 0.0);
   std::vector<double> x_init((N + 1) * num_states, 0.0);
-  //   std::merge(x0.begin(), x0.end(), xs.begin(), xs.end(),
-  //              std::back_inserter(control_params));
-  //   std::merge(x_init.begin(), x_init.end(), u_init.begin(), u_init.end(),
-  //              std::back_inserter(init_values));
 
   std::map<std::string, casadi::DM> res;
-  //   casadi::DMDict arg = {{"lbx", lbx},          {"ubx", ubx},
-  //                         {"lbg", lbg},          {"ubg", ubg},
-  //                         {"p", control_params}, {"x0", init_values}};
-
-  // std::cout << "x solution: " << result_x << std::endl;
-  // std::cout << "u solution: " << result_u << std::endl;
 
   double distance_error = 1e4;
   int mpc_iter = 0;
@@ -221,10 +193,6 @@ int main() {
   double time_t = 0.0;
   Eigen::Vector3d target_x;
   target_x << xs[0], xs[1], xs[2];
-
-  // std::vector<double> time_vector_test;
-  // std::cout << casadi::cos(0.785398) << std::endl;
-  // std::cout << std::cos(0.785398) << std::endl;
 
   while (distance_error > 1e-2 && mpc_iter - sim_iter < 0) {
     control_params.clear();
@@ -258,9 +226,7 @@ int main() {
     // std::cout<< "result u: "<< result_u << std::endl;
     auto new_x = shift_movement(dT, time_t, x0, result_u);
 
-    // std::cout<< "new_x: "<< new_x << std::endl;
     distance_error = (new_x - target_x).norm();
-    // std::cout << distance_error << std::endl;
     result_x.erase(result_x.begin(), result_x.begin() + num_states);
     for (int i = 0; i < num_states; i++) {
       result_x.push_back(*(result_x.end() - num_states + 1));
