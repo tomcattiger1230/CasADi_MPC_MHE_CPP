@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2022-10-31 14:49:55
  * @LastEditors: Wei Luo
- * @LastEditTime: 2022-11-01 21:35:04
+ * @LastEditTime: 2022-11-02 17:19:57
  * @Note: Note
  */
 #include <Eigen/Dense>
@@ -215,7 +215,7 @@ int main() {
 
   double distance_error = 1e4;
   int mpc_iter = 0;
-  double sim_time = 6.0;
+  double sim_time = 20.0;
   int sim_iter = int(sim_time / dT);
   auto start_time = std::chrono::high_resolution_clock::now();
   double time_t = 0.0;
@@ -251,11 +251,11 @@ int main() {
     result_u.assign(result_all.begin() + (N + 1) * num_states,
                     result_all.end());
 
-    std::cout<< "result x: "<< result_x << std::endl;
-    std::cout<<
-    "================================================================" <<
-    std::endl;
-    std::cout<< "result u: "<< result_u << std::endl;
+    // std::cout<< "result x: "<< result_x << std::endl;
+    // std::cout<<
+    // "================================================================" <<
+    // std::endl;
+    // std::cout<< "result u: "<< result_u << std::endl;
     auto new_x = shift_movement(dT, time_t, x0, result_u);
 
     // std::cout<< "new_x: "<< new_x << std::endl;
