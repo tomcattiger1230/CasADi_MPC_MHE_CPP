@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2022-10-31 14:49:55
  * @LastEditors: Wei Luo
- * @LastEditTime: 2022-11-02 17:26:24
+ * @LastEditTime: 2022-11-06 14:39:18
  * @Note: Note
  */
 #include <Eigen/Dense>
@@ -68,6 +68,7 @@ int main() {
   auto omega = casadi::SX::sym("omega");
   auto controls = casadi::SX::vertcat({v, omega});
   int num_controls = controls.size().first;
+  casadi::Slice all;
 
   // for MPC
   auto U = casadi::SX::sym("U", num_controls, N);
@@ -89,42 +90,22 @@ int main() {
   casadi::SX obj = 0;
   // constraints
   casadi::SX g;
-  g = X(casadi::Slice(), 0) - P(casadi::Slice(0, num_states));
+  g = X(all, 0) - P(casadi::Slice(0, num_states));
   g = casadi::SX::reshape(g, -1, 1);
-  //   std::cout << casadi::SX::reshape(X, -1, 1) << std::endl;
   for (int i = 0; i < N; i++) {
-    // std::cout << U.nz(casadi::Slice(i * num_controls, (i + 1) * num_controls))
-    //           << std::endl;
-    obj = obj +
-          // casadi::SX::mtimes(
-          //     casadi::SX::mtimes(
-          //         (X.nz(casadi::Slice(i * num_states, (i + 1) * num_states)) -
-          //          P.nz(casadi::Slice(num_states, 2 * num_states)))
-          //             .T(),
-          //         Q),
-          //     (X.nz(casadi::Slice(i * num_states, (i + 1) * num_states)) -
-          //      P.nz(casadi::Slice(num_states, 2 * num_states)))) +
-          casadi::SX::mtimes(
-              casadi::SX::mtimes(
-                  (X(casadi::Slice(), i) -
-                   P(casadi::Slice(num_states, 2 * num_states)))
-                      .T(),
-                  Q),
-              (X(casadi::Slice(), i) -
-               P(casadi::Slice(num_states, 2 * num_states)))) +
-          casadi::SX::mtimes(
-              casadi::SX::mtimes(
-                  U(casadi::Slice(), i)
-                      .T(),
-                  R),
-              U(casadi::Slice(), i));
+    obj =
+        obj +
+        casadi::SX::mtimes(
+            casadi::SX::mtimes(
+                (X(all, i) - P(casadi::Slice(num_states, 2 * num_states))).T(),
+                Q),
+            (X(all, i) - P(casadi::Slice(num_states, 2 * num_states)))) +
+        casadi::SX::mtimes(casadi::SX::mtimes(U(all, i).T(), R), U(all, i));
     std::vector<casadi::SX> input(2);
-    input[0] = X(casadi::Slice(), i);
-    input[1] = U(casadi::Slice(), i);
-    auto x_next_ = integrator(input).at(0) * dT +
-                   X(casadi::Slice(), i);
-    g = casadi::SX::vertcat(
-        {g, x_next_ - X(casadi::Slice(), i+1)});
+    input[0] = X(all, i);
+    input[1] = U(all, i);
+    auto x_next_ = integrator(input).at(0) * dT + X(all, i);
+    g = casadi::SX::vertcat({g, x_next_ - X(all, i + 1)});
   }
   casadi::SXDict nlp = {
       {"x", casadi::SX::vertcat({casadi::SX::reshape(X, -1, 1),
@@ -137,7 +118,6 @@ int main() {
   solver_opts["expand"] = true;
   solver_opts["ipopt.max_iter"] = 100;
   solver_opts["ipopt.print_level"] = 0;
-  // solver_opts["linear_solver"] = "ma57";
   solver_opts["print_time"] = 0;
   solver_opts["ipopt.acceptable_tol"] = 1e-8;
   solver_opts["ipopt.acceptable_obj_change_tol"] = 1e-6;
@@ -206,12 +186,7 @@ int main() {
     casadi::DMDict arg = {{"lbx", lbx},          {"ubx", ubx},
                           {"lbg", lbg},          {"ubg", ubg},
                           {"p", control_params}, {"x0", init_values}};
-    // auto start_time_i = std::chrono::high_resolution_clock::now();
     res = solver(arg);
-    // auto stop_time_i = std::chrono::high_resolution_clock::now();
-    // auto duration_i =
-    //     duration_cast<std::chrono::microseconds>(stop_time_i - start_time_i);
-    // time_vector_test.push_back(duration_i.count()/1e6);
     std::vector<double> result_all(res.at("x"));
     std::vector<double> result_x, result_u;
     result_x.assign(result_all.begin(),
@@ -219,11 +194,6 @@ int main() {
     result_u.assign(result_all.begin() + (N + 1) * num_states,
                     result_all.end());
 
-    // std::cout<< "result x: "<< result_x << std::endl;
-    // std::cout<<
-    // "================================================================" <<
-    // std::endl;
-    // std::cout<< "result u: "<< result_u << std::endl;
     auto new_x = shift_movement(dT, time_t, x0, result_u);
 
     distance_error = (new_x - target_x).norm();
