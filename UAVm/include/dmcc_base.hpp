@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2022-12-12 17:55:51
  * @LastEditors: Wei Luo
- * @LastEditTime: 2022-12-25 19:09:28
+ * @LastEditTime: 2022-12-30 23:26:06
  * @Note: Note
  */
 
@@ -12,6 +12,7 @@
 #include <Eigen/Dense>
 #include <casadi/casadi.hpp>
 #include <math.h>
+
 
 namespace ca = casadi;
 
@@ -28,8 +29,8 @@ public:
   double frame_size_;
 
   int num_controls_;
-  int num_dofs_;
-  int num_states_;
+  int num_dofs_; // same as size of q
+  int num_states_; // number of states,
 
   template <typename T> T rotation_matrix(const T angle) {
     T phi = angle(0);
@@ -37,11 +38,11 @@ public:
     T psi = angle(2);
 
     T Rz = T(3, 3);
-    Rz(0, 0) = ca::MX::cos(psi);
-    Rz(0, 1) = -ca::MX::sin(psi);
+    Rz(0, 0) = T::cos(psi);
+    Rz(0, 1) = -T::sin(psi);
     Rz(0, 2) = 0.0;
-    Rz(1, 0) = ca::MX::sin(psi);
-    Rz(1, 1) = ca::MX::cos(psi);
+    Rz(1, 0) = T::sin(psi);
+    Rz(1, 1) = T::cos(psi);
     Rz(1, 2) = 0.0;
     Rz(2, 0) = 0.0;
     Rz(2, 1) = 0.0;
@@ -101,11 +102,10 @@ public:
   template <typename T>
   T discrete_lagrange(T dt, T q_n, T q_np1, ca::Function fct_L) {
     T q = (q_n + q_np1) / 2.0;
-    q(ca::Slice(3, 6)) =
-        average_rpy(q_n(ca::Slice(3, 6)), q_np1(ca::Slice(3, 6)));
+    q(slice_rpy) = average_rpy(q_n(slice_rpy), q_np1(slice_rpy));
     T q_dot = (q_np1 - q_n) / dt;
     q_dot(slice_rpy) =
-        difference_rpy((T)q_n(ca::Slice(3, 6)), (T)q_np1(ca::Slice(3, 6)), dt);
+        difference_rpy((T)q_n(slice_rpy), (T)q_np1(slice_rpy), dt);
 
     if (num_dofs_ > 6) {
       for (int i = 6; i < num_dofs_; ++i) {
@@ -127,7 +127,7 @@ public:
   T discrete_lagrange_verlet(T dt, T q_n, T q_np1, ca::Function fct_L) {
     T q_dot = (q_np1 - q_n) / dt;
     q_dot(slice_rpy) =
-        difference_rpy((T)q_n(ca::Slice(3, 6)), (T)q_np1(ca::Slice(3, 6)), dt);
+        difference_rpy((T)q_n(slice_rpy), (T)q_np1(slice_rpy), dt);
 
     if (num_dofs_ > 6) {
       for (int i = 6; i < num_dofs_; ++i) {

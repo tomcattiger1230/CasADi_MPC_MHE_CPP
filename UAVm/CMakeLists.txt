@@ -12,3 +12,6 @@ add_library(dmcc_uav_manipulator src/models/dmcc_uav_manipulator.cpp)
 
 add_executable(cpc_planner src/uav_manipulator_cpc_planner.cpp )
 target_link_libraries(cpc_planner dmcc_uav_manipulator casadi)
+
+add_executable(fixed_point_planner src/uav_manipulator_fp_planner.cpp )
+target_link_libraries(fixed_point_planner dmcc_uav_manipulator casadi)

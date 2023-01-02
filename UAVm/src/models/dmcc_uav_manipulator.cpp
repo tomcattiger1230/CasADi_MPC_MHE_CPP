@@ -2,34 +2,37 @@
  * @Author: Wei Luo
  * @Date: 2022-12-14 11:00:34
  * @LastEditors: Wei Luo
- * @LastEditTime: 2022-12-27 16:50:32
+ * @LastEditTime: 2023-01-02 23:39:19
  * @Note: Note
  */
 
 #include <dmcc_uav_manipulator.hpp>
 
 DMCCUAVManipulator::DMCCUAVManipulator(
-    const double manipulator_length, const double mass_quadrotor,
-    const double mass_manipulator, const std::vector<double> inertia_moment,
+    const double mass_quadrotor, const double mass_manipulator,
+    const std::vector<double> inertia_moment,
     const std::vector<double> manipulator_inertia_moment,
-    const bool has_contact_target, const bool has_manipulator,
+    const double manipulator_length, const bool has_contact_target,
     const std::vector<double> montage_offset_b, const double frame_size,
     const double motor_torque_const, const double g)
-    : DerivationUAV(g, manipulator_length, mass_manipulator, mass_quadrotor,
-                    inertia_moment, manipulator_inertia_moment, frame_size,
-                    motor_torque_const, montage_offset_b) {
+    : DerivationUAVm(g, manipulator_length, mass_manipulator, mass_quadrotor,
+                     inertia_moment, manipulator_inertia_moment, frame_size,
+                     motor_torque_const, montage_offset_b) {
 
   // only a trajectory planning or considering a specific mission
   has_contact_target_ = has_contact_target;
 };
 DMCCUAVManipulator::~DMCCUAVManipulator(){};
 
+
+/* * get path waypoints without contact target * */
 void DMCCUAVManipulator::get_path_waypoints(
     const Eigen::VectorXd current_pose, const Eigen::MatrixXd path_waypoints,
     const double guessed_velocity) {
   init_pose_ = current_pose;
   path_waypoints_ = path_waypoints;
-  if (num_def_waypoints_ == path_waypoints.rows())
+  std::cout << "path waypoints_ are " << path_waypoints_ << std::endl;
+  if (num_def_waypoints_ == path_waypoints.cols())
     std::cout << "num of defined path waypoints: " << num_def_waypoints_
               << std::endl;
   else {
@@ -39,17 +42,67 @@ void DMCCUAVManipulator::get_path_waypoints(
   }
 
   std::vector<double> dist;
-  dist.push_back((init_pose_.block<3, 1>(0, 0).transpose() -
-                  path_waypoints_.block<1, 3>(0, 0))
-                     .norm());
+  dist.push_back(
+      (init_pose_.block<3, 1>(0, 0) - path_waypoints_.block<3, 1>(0, 0))
+          .norm());
 
   if (dist[0] < 0.01) {
     dist[0] += 0.01; // incase of 0 or almost zero distance
   }
 
   for (int i = 1; i < num_def_waypoints_; i++) {
-    dist.push_back(dist[i - 1] + (path_waypoints_.block<1, 3>(i, 0) -
-                                  path_waypoints_.block<1, 3>(i - 1, 0))
+    dist.push_back(dist[i - 1] + (path_waypoints_.block<3, 1>(0, i) -
+                                  path_waypoints_.block<3, 1>(0, i - 1))
+                                     .norm());
+  }
+
+  for (auto it : dist) {
+    i_switch_.push_back(num_pred_waypoints_ * it / dist.back());
+  }
+
+  vel_guess_ = guessed_velocity;
+  time_guess_ = dist.back() / vel_guess_;
+
+  std::cout << "distance between each pair of nodes: " << dist << std::endl;
+  for (auto it : i_switch_)
+    std::cout << "switch index: " << it << std::endl;
+  std::cout << "we will generate " << num_pred_waypoints_ << " waypoints."
+            << std::endl;
+  std::cout << "the guessed travel time is : " << time_guess_ << "[s]"
+            << std::endl;
+
+  init_state_guess(false);
+}
+
+/* * get path waypoints without contact target * */
+void DMCCUAVManipulator::get_path_waypoints(
+    const int kappa0, const Eigen::VectorXd current_pose,
+    const Eigen::MatrixXd path_waypoints, const double guessed_velocity) {
+  kappa0_ = kappa0;
+  init_pose_ = current_pose;
+  path_waypoints_ = path_waypoints;
+  std::cout << "path waypoints_ are " << path_waypoints_ << std::endl;
+  if (num_def_waypoints_ == path_waypoints.cols())
+    std::cout << "num of defined path waypoints: " << num_def_waypoints_
+              << std::endl;
+  else {
+    std::cout << "num of defined path waypoints is not equal to that is "
+                 "initalized !!!"
+              << std::endl;
+  }
+
+  std::vector<double> dist;
+  dist.push_back(
+      (init_pose_.block<3, 1>(0, 0) - path_waypoints_.block<3, 1>(0, 0))
+          .norm());
+
+  if (dist[0] < 0.01) {
+    dist[0] += 0.01; // incase of 0 or almost zero distance
+  }
+
+  for (int i = 1; i < num_def_waypoints_; i++) {
+    dist.push_back(dist[i - 1] + (path_waypoints_.block<3, 1>(0, i) -
+                                  path_waypoints_.block<3, 1>(0, i - 1))
                                      .norm());
   }
 
@@ -79,15 +132,12 @@ void DMCCUAVManipulator::get_path_waypoints(
 
 void DMCCUAVManipulator::init_state_guess(
     const bool with_additional_relaxation) {
-
-  // Eigen::MatrixXd u0(num_pred_waypoints_, num_dofs_ - 2);
   std::vector<double> u0(num_pred_waypoints_ * num_controls_,
                          (mass_quadrotor_ + mass_manipulator_) * g_ * 0.25);
 
-  if (num_controls_ == 7) {
-    for (int i = 0; i < num_pred_waypoints_; i++) {
-      u0[4 * (i + 1)] = 0.0;
-    }
+  // for manipulator control input
+  for (int i = 0; i < num_pred_waypoints_; i++) {
+    u0[4 * (i + 1)] = 0.0;
   }
 
   int i_wp = 0;
@@ -95,20 +145,30 @@ void DMCCUAVManipulator::init_state_guess(
   Eigen::Vector3d wp_next;
   double interp;
   Eigen::MatrixXd x_guess_matrix =
-      Eigen::MatrixXd::Zero(num_pred_waypoints_, num_states_);
+      Eigen::MatrixXd::Zero(num_states_, num_pred_waypoints_);
 
   if (num_dofs_ == 6) {
-    x_guess_matrix.block<1, 12>(0, 0) = init_pose_;
+    x_guess_matrix.block<12, 1>(0, 0) = init_pose_;
   } else if (num_dofs_ == 7) {
-    x_guess_matrix.block<1, 14>(0, 0) = init_pose_;
+    x_guess_matrix.block<14, 1>(0, 0) = init_pose_;
   }
 
   std::vector<double> x0(init_pose_.data(), init_pose_.data() + num_dofs_);
+  // without contact target
   std::vector<int> lambda0;
+  // with contact target
+  std::vector<int> kappa0;
+  std::vector<int> epsilon0(num_pred_waypoints_, 0);
 
-  if (has_contact_target_) {
-    //
-  } else {
+  if (has_contact_target_)
+  {
+    for (int i = 0; i < num_pred_waypoints_; i++)
+    {
+      kappa0.push_back(kappa0_);
+    }
+  }
+  else
+  {
     for (int i = 0; i < num_pred_waypoints_; ++i) {
       if (i > i_switch_[i_wp]) {
         i_wp += 1;
@@ -116,9 +176,9 @@ void DMCCUAVManipulator::init_state_guess(
       if (i_wp == 0) {
         wp_last = init_pose_.block<3, 1>(0, 0).transpose();
       } else {
-        wp_last = path_waypoints_.block<1, 3>(i_wp - 1, 0);
+        wp_last = path_waypoints_.block<3, 1>(0, i_wp - 1);
       }
-      wp_next = path_waypoints_.block<1, 3>(i_wp, 0);
+      wp_next = path_waypoints_.block<3, 1>(0, i_wp);
       if (i_wp > 0) {
         interp = ((double)i - i_switch_[i_wp - 1]) /
                  (i_switch_[i_wp] - i_switch_[i_wp - 1]);
@@ -128,11 +188,12 @@ void DMCCUAVManipulator::init_state_guess(
       Eigen::Vector3d pos_guess = (1.0 - interp) * wp_last + interp * wp_next;
       Eigen::Vector3d vel_guess =
           vel_guess_ * (wp_next - wp_last) / (wp_next - wp_last).norm();
+      std::cout << "velocity guess: " << pos_guess << std::endl;
 
       if (i > 0) {
         if (num_dofs_ == 6) {
-          x_guess_matrix.block<1, 3>(i, 0) = pos_guess;
-          x_guess_matrix.block<1, 3>(i, 6) = vel_guess;
+          x_guess_matrix.block<3, 1>(0, i) = pos_guess;
+          x_guess_matrix.block<3, 1>(6, i) = vel_guess;
           std::vector<double> pos_std(pos_guess.data(),
                                       pos_guess.data() +
                                           pos_guess.rows() * pos_guess.cols());
@@ -149,9 +210,9 @@ void DMCCUAVManipulator::init_state_guess(
           // x0.push_back(0.0);
           // x0.push_back(0.0);
         } else if (num_dofs_ == 7) {
-          x_guess_matrix.block<1, 3>(i, 0) = pos_guess;
-          x_guess_matrix(i, 6) = M_PI;
-          x_guess_matrix.block<1, 3>(i, 7) = vel_guess;
+          x_guess_matrix.block<3, 1>(0, i) = pos_guess;
+          x_guess_matrix(6, i) = M_PI / 2.0;
+          x_guess_matrix.block<3, 1>(7, i) = vel_guess;
 
           std::vector<double> pos_std(pos_guess.data(),
                                       pos_guess.data() +
@@ -188,8 +249,8 @@ void DMCCUAVManipulator::init_state_guess(
 
     // fill in the guessed speed of each waypoint
     for (int i = 0; i < i_switch_.size(); i++) {
-      path_waypoints_.block<1, 3>(i, num_dofs_) =
-          x_guess_matrix.block<1, 3>(i, 6);
+      path_waypoints_.block<3, 1>(num_dofs_, i) =
+          x_guess_matrix.block<3, 1>(6, i);
     }
 
     std::vector<double> tolerance_param0(
@@ -200,23 +261,33 @@ void DMCCUAVManipulator::init_state_guess(
     init_values_.push_back(time_guess_);
     init_values_.insert(init_values_.end(), x0.begin(), x0.end());
     init_values_.insert(init_values_.end(), u0.begin(), u0.end());
-    init_values_.insert(init_values_.end(), lambda0.begin(), lambda0.end());
-    init_values_.insert(init_values_.end(), tolerance_param0.begin(),
-                        tolerance_param0.end());
+    std::cout << " dddd time" << std::endl;
+    if (has_contact_target_) {
+
+    } else {
+      init_values_.insert(init_values_.end(), lambda0.begin(), lambda0.end());
+      init_values_.insert(init_values_.end(), tolerance_param0.begin(),
+                          tolerance_param0.end());
+    }
+
+    std::cout << "Initial values: " << init_values_ << std::endl;
+    std::cout << x_guess_matrix << std::endl;
 
   } // no contact target
 }
 
-void DMCCUAVManipulator::initialization_formulation(
-    const int kappa0, const int num_def_waypoints,
+void DMCCUAVManipulator::initialization_formulation(const int num_def_waypoints,
     const int num_pred_waypoints) {
-  kappa0_ = kappa0;
+
   num_def_waypoints_ = num_def_waypoints;
   num_pred_waypoints_ = num_pred_waypoints;
+
+  std::cout << "number of waypoint prediction :" << num_pred_waypoints_
+            << std::endl;
+
   // CasADi formulation
   auto Tn = ca::MX::sym("Tn");
   dt_ = Tn / (num_pred_waypoints_ - 1);
-
   auto U = ca::MX::sym("U", num_controls_, num_pred_waypoints_);
   auto X = ca::MX::sym("X", num_dofs_, num_pred_waypoints_);
   auto init_pose = ca::MX::sym("init_pose", num_states_);
@@ -224,7 +295,10 @@ void DMCCUAVManipulator::initialization_formulation(
       ca::MX::sym("W_ref", num_states_, num_def_waypoints_);
 
   if (has_contact_target_) {
-
+    epsilon_param_ = ca::MX::sym("epsilon_param", num_pred_waypoints_ - 1);
+    kappa_param_ = ca::MX::sym("kappa_param", num_pred_waypoints_);
+    contact_relax_param_ =
+        ca::MX::sym("contact_relax_param", num_pred_waypoints_ - 1);
   } // has contact target
   else {
     lambda_param_ =
@@ -232,51 +306,60 @@ void DMCCUAVManipulator::initialization_formulation(
     tolerance_param_ = ca::MX::sym("tolerance_param", num_def_waypoints_,
                                    num_pred_waypoints_ - 1);
   }
+
   obj_function_ = Tn;
-  ca::DM Q = ca::DM::eye(5) * 10.0;
   ca::DM u0 = ca::DM({1.0, 1.0, 1.0, 1.0, 0.0}) *
-              (mass_quadrotor_ + mass_manipulator_) * g_;
+              (mass_quadrotor_ + mass_manipulator_) * g_ / 4.0;
+  std::cout << mass_quadrotor_ << std::endl;
+  std::cout << mass_manipulator_ << std::endl;
+  std::cout << (mass_quadrotor_ + mass_manipulator_) * g_ / 4.0 << std::endl;
+  ca::DM Q = ca::DM::eye(5) * 10.0;
+
   for (int i = 0; i < num_pred_waypoints_; i++) {
     obj_function_ += 0.0003 * dt_ *
                      ca::MX::mtimes({(U(all, i) - u0).T(), Q, U(all, i) - u0});
   }
 
-  // ca::DM init_pose_dm{std::vector<double>(
-  //     init_pose_.data(), init_pose_.size() + init_pose_.data())};
-  // auto end_pose = path_waypoints_.block<1, 14>(num_def_waypoints_ - 1, 0);
-  // ca::DM end_pose_dm{
-  //     std::vector<double>(end_pose.data(), end_pose.size() +
-  //     end_pose.data())};
+  // for (int i = 0; i < num_pred_waypoints_-1; i++) {
+  //   obj_function_ +=
+  //       0.0003 * dt_ *
+  //       ca::MX::mtimes({(X(ca::Slice(0, 3), i + 1) - X(ca::Slice(0, 3),
+  //       i)).T(),
+  //                       X(ca::Slice(0, 3), i + 1) - X(ca::Slice(0, 3), i)});
+  // }
 
-  // constraint_vector_ = X(0, all).T() - init_pose_dm(ca::Slice(0, num_dofs_));
   // using parameters
-  constraint_vector_ = X(all, 0) - init_pose(ca::Slice(0, num_dofs_));
-  constraint_vector_ = ca::MX::reshape(constraint_vector_, -1, 1);
+  // constraint_vector_std_.push_back(X(all, 0) - init_pose(ca::Slice(0,
+  // num_dofs_)));
+  // constraint_vector_std_.push_back(X(all, num_pred_waypoints_-1) -
+  // waypoint_reference(ca::Slice(0, num_dofs_), num_def_waypoints_-1));
 
-  constraint_vector_ = ca::MX::vertcat(
-      {constraint_vector_,
-       X(all, -1) - waypoint_reference(ca::Slice(0, num_dofs_), -1)});
-  constraint_vector_ = ca::MX::vertcat({constraint_vector_, U(all, 0) - u0});
-  constraint_vector_ = ca::MX::vertcat({constraint_vector_, U(all, -1) - u0});
+  for (int i = 0; i < num_dofs_; i++) {
+    constraint_vector_std_.push_back(X(i, 0) - init_pose(i));
+    constraint_vector_std_.push_back(X(i, -1) - waypoint_reference(i, -1));
+  }
+
+  constraint_vector_std_.push_back(U(all, 0) - u0);
+  constraint_vector_std_.push_back(U(all, -1) - u0);
 
   // discrete Lagrange equations
-  auto q_nm1 = ca::MX::sym("q_nm1", num_dofs_);
-  auto q_n = ca::MX::sym("q_n", num_dofs_);
-  auto q_np1 = ca::MX::sym("q_np1", num_dofs_);
+  ca::MX q_nm1 = ca::MX::sym("q_nm1", num_dofs_);
+  ca::MX q_n = ca::MX::sym("q_n", num_dofs_);
+  ca::MX q_np1 = ca::MX::sym("q_np1", num_dofs_);
 
-  auto D2L_d = ca::MX::gradient(
+  ca::MX D2L_d = ca::MX::gradient(
       discrete_lagrange_verlet(dt_, q_nm1, q_n, get_lagrangian_function()),
       q_n);
 
-  auto D1L_d = ca::MX::gradient(
+  ca::MX D1L_d = ca::MX::gradient(
       discrete_lagrange_verlet(dt_, q_n, q_np1, get_lagrangian_function()),
       q_n);
 
   ca::Function derivative_EulerLagrange_function =
       ca::Function("dEL", {q_nm1, q_n, q_np1}, {D2L_d + D1L_d});
 
-  auto q_b = ca::MX::sym("q_b", num_dofs_);
-  auto q_b_dot = ca::MX::sym("q_b_dot", num_dofs_);
+  ca::MX q_b = ca::MX::sym("q_b", num_dofs_);
+  ca::MX q_b_dot = ca::MX::sym("q_b_dot", num_dofs_);
   std::vector<ca::MX> q_b_vec(2);
   q_b_vec[0] = q_b;
   q_b_vec[1] = q_b_dot;
@@ -289,23 +372,23 @@ void DMCCUAVManipulator::initialization_formulation(
 
   // waypoint connection
   for (int i = 0; i < num_pred_waypoints_ - 1; ++i) {
-    auto f_d_nm1 = discrete_forces(dt_, get_system_dynamics_function(),
+    auto f_d_nm1 = discrete_forces(dt_, get_external_force_function(),
                                    (ca::MX)X(all, i - 1), (ca::MX)U(all, i - 1),
                                    (ca::MX)U(all, i));
     auto f_d_n =
-        discrete_forces(dt_, get_system_dynamics_function(), (ca::MX)X(all, i),
+        discrete_forces(dt_, get_external_force_function(), (ca::MX)X(all, i),
                         (ca::MX)U(all, i), (ca::MX)U(all, i + 1));
     std::vector<ca::MX> input(3);
     input[0] = X(all, i - 1);
     input[1] = X(all, i);
     input[2] = X(all, i + 1) + f_d_nm1 + f_d_n;
     auto sum = derivative_EulerLagrange_function(input).at(0);
-    constraint_vector_ = ca::MX::vertcat({constraint_vector_, sum});
+    constraint_vector_std_.push_back(sum);
   }
 
   // boundary conditions
   auto f_0 =
-      discrete_forces(dt_, get_system_dynamics_function(), (ca::MX)X(all, 0),
+      discrete_forces(dt_, get_external_force_function(), (ca::MX)X(all, 0),
                       (ca::MX)U(all, 0), (ca::MX)U(all, 1));
   std::vector<ca::MX> input(4);
   input[0] = init_pose(ca::Slice(0, num_dofs_));
@@ -313,9 +396,9 @@ void DMCCUAVManipulator::initialization_formulation(
   input[2] = X(all, 0);
   input[3] = X(all, 1) + f_0;
   auto init_condition = d_EulerLagrange_init_function(input).at(0);
-  constraint_vector_ = ca::MX::vertcat({constraint_vector_, init_condition});
+  constraint_vector_std_.push_back(init_condition);
 
-  auto f_N_1 = discrete_forces(dt_, get_system_dynamics_function(),
+  auto f_N_1 = discrete_forces(dt_, get_external_force_function(),
                                (ca::MX)X(all, num_pred_waypoints_ - 2),
                                (ca::MX)U(all, num_pred_waypoints_ - 2),
                                (ca::MX)U(all, num_pred_waypoints_ - 1));
@@ -328,15 +411,13 @@ void DMCCUAVManipulator::initialization_formulation(
   input[3] = X(all, num_pred_waypoints_ - 1) + f_N_1;
 
   auto end_condition = d_EulerLagrange_end_function(input).at(0);
-  constraint_vector_ = ca::MX::vertcat({constraint_vector_, end_condition});
+  constraint_vector_std_.push_back(end_condition);
 
   if (has_contact_target_) {
   } else {
     for (int i = 0; i < num_def_waypoints_; ++i) {
-      constraint_vector_ =
-          ca::MX::vertcat({constraint_vector_, lambda_param_(i, 0) - 1.0});
-      constraint_vector_ =
-          ca::MX::vertcat({constraint_vector_, lambda_param_(i, -1)});
+      constraint_vector_std_.push_back(lambda_param_(i, 0) - 1.0);
+      constraint_vector_std_.push_back(lambda_param_(i, -1));
     }
     for (int i = 0; i < num_pred_waypoints_ - 1; ++i) {
       for (int j = 0; j < num_def_waypoints_; ++j) {
@@ -344,24 +425,27 @@ void DMCCUAVManipulator::initialization_formulation(
         auto cost = ca::MX::norm_2(X(ca::Slice(0, 3), i) -
                                    waypoint_reference(ca::Slice(0, 3), j)) -
                     tolerance_param_(j, i);
-        constraint_vector_ = ca::MX::vertcat({constraint_vector_, mu * cost});
-
+        constraint_vector_std_.push_back(mu * cost);
       }
     }
   } // no contact target
 
-  number_equal_constraint = constraint_vector_.size1();
+  number_equality_constraint_ = constraint_vector_std_.size();
 
-  std::cout << "number of equal constraints: " << number_equal_constraint
+  std::cout << "number of equal constraints: " << number_equality_constraint_
             << std::endl;
 
-  // velocity constraints
-  for (int i = 0; i < num_pred_waypoints_ - 1; ++i) {
-    constraint_vector_ = ca::MX::vertcat(
-        {constraint_vector_,
-         average_velocity(dt_, (ca::MX)X(all, i), (ca::MX)X(all, i + 1), 7)});
+  // // velocity constraints
+  // for (int i = 0; i < num_pred_waypoints_ - 1; ++i) {
+  //   constraint_vector_std_.push_back(average_velocity(dt_, (ca::MX)X(all, i),
+  //   (ca::MX)X(all, i + 1), 7));
+  // }
 
-  }
+  // auto a =
+  //     ca::MX::vertcat({Tn, ca::MX::reshape(X, -1, 1), ca::MX::reshape(U, -1, 1),
+  //                      ca::MX::reshape(lambda_param_, -1, 1),
+  //                      ca::MX::reshape(tolerance_param_, -1, 1)});
+  // std::cout << a.size() << std::endl;
 
   if (has_contact_target_) {
   } else {
@@ -371,7 +455,7 @@ void DMCCUAVManipulator::initialization_formulation(
                                ca::MX::reshape(lambda_param_, -1, 1),
                                ca::MX::reshape(tolerance_param_, -1, 1)})},
         {"f", obj_function_},
-        {"g", constraint_vector_},
+        {"g", ca::MX::vertcat(constraint_vector_std_)},
         {"p", ca::MX::vertcat({ca::MX::reshape(init_pose, -1, 1),
                                ca::MX::reshape(waypoint_reference, -1, 1)})}};
     std::string solver_name = "ipopt";
@@ -390,7 +474,7 @@ void DMCCUAVManipulator::set_constraints(
     const std::vector<double> v, const std::vector<double> d_rpy,
     const std::vector<double> tolerance_param,
     const std::vector<double> high_interation) {
-  for (int i = 0; i < number_equal_constraint; i++) {
+  for (int i = 0; i < number_equality_constraint_; i++) {
     lbg_.push_back(0.0);
     ubg_.push_back(0.0);
   }
@@ -402,21 +486,21 @@ void DMCCUAVManipulator::set_constraints(
     const std::vector<double> min_control_input,
     const std::vector<double> max_control_input,
     const std::vector<double> lambda, std::vector<double> nu) {
-  for (int i = 0; i < number_equal_constraint; i++) {
-    lbg_.push_back(0.0);
-    ubg_.push_back(0.0);
-  }
+  // for (int i = 0; i < number_equality_constraint_; i++) {
+  //   lbg_.push_back(0.0);
+  //   ubg_.push_back(0.0);
+  // }
 
-  for (int i = 0; i < num_pred_waypoints_ - 1; i++) {
-    for (int j = 0; j < v.size(); j++) {
-      lbg_.push_back(-v[j]);
-      ubg_.push_back(v[j]);
-    }
-    for (int j = 0; j < d_rpy.size(); j++) {
-      lbg_.push_back(-d_rpy[j]);
-      ubg_.push_back(d_rpy[j]);
-    }
-  }
+  // for (int i = 0; i < num_pred_waypoints_ - 1; i++) {
+  //   for (int j = 0; j < v.size(); j++) {
+  //     lbg_.push_back(-v[j]);
+  //     ubg_.push_back(v[j]);
+  //   }
+  //   for (int j = 0; j < d_rpy.size(); j++) {
+  //     lbg_.push_back(-d_rpy[j]);
+  //     ubg_.push_back(d_rpy[j]);
+  //   }
+  // }
 
   // Tn
   lbx_.push_back(0.01);
@@ -453,13 +537,16 @@ void DMCCUAVManipulator::get_results() {
                                     init_pose_.size() + init_pose_.data());
   std::vector<double> reference_waypoint_std(
       path_waypoints_.data(), path_waypoints_.size() + path_waypoints_.data());
-  std::merge(init_pose_std.begin(), init_pose_std.end(),
-             reference_waypoint_std.begin(), reference_waypoint_std.end(),
-             std::back_inserter(optimization_param_));
-
-  std::cout << init_values_ << std::endl;
+  optimization_param_.insert(optimization_param_.end(), init_pose_std.begin(),
+                             init_pose_std.end());
+  optimization_param_.insert(optimization_param_.end(),
+                             reference_waypoint_std.begin(),
+                             reference_waypoint_std.end());
+  std::cout << init_pose_std << std::endl;
+  std::cout << reference_waypoint_std << std::endl;
+  std::cout << optimization_param_ << std::endl;
   ca::DMDict arg = {{"lbx", lbx_},        {"ubx", ubx_},
-                    {"lbg", lbg_},        {"ubg", ubg_},
+                    {"lbg", 0.0},         {"ubg", 0.0},
                     {"x0", init_values_}, {"p", optimization_param_}};
 
   auto start_time = std::chrono::high_resolution_clock::now();
@@ -474,18 +561,16 @@ void DMCCUAVManipulator::get_results() {
   Eigen::MatrixXd result_x_matrix =
       Eigen::MatrixXd::Map(result_x.data(), num_dofs_, num_pred_waypoints_);
 
-  result_u.assign(
-      result_all.begin() + num_pred_waypoints_ * num_dofs_ + 1,
-      result_all.begin() +
-          num_pred_waypoints_ * (num_controls_ + num_dofs_) + 1);
+  result_u.assign(result_all.begin() + num_pred_waypoints_ * num_dofs_ + 1,
+                  result_all.begin() +
+                      num_pred_waypoints_ * (num_controls_ + num_dofs_) + 1);
   Eigen::MatrixXd result_u_matrix =
       Eigen::MatrixXd::Map(result_u.data(), num_controls_, num_pred_waypoints_);
 
   Eigen::MatrixXd result_lambda_matrix;
 
-  if (has_contact_target_)
-  {}
-  else{
+  if (has_contact_target_) {
+  } else {
     std::vector<double> result_lambda, result_nu;
     result_lambda.assign(
         result_all.begin() + num_pred_waypoints_ * (num_controls_ + num_dofs_) +
@@ -502,17 +587,16 @@ void DMCCUAVManipulator::get_results() {
   std::cout << "estimated travel time: " << opt_time << std::endl;
   std::cout << "average calculation time for each iteration [s]: "
             << duration.count() / 1e6 << std::endl;
-            // std::cout << result_x << std::endl;
-            // std::cout << result_u<< std::endl;
+  // std::cout << result_x << std::endl;
+  // std::cout << result_u<< std::endl;
   std::cout << result_x_matrix.transpose() << std::endl;
   std::cout << "======" << std::endl;
   std::cout << result_u_matrix.transpose() << std::endl;
 
-  if (has_contact_target_){
+  if (has_contact_target_) {
 
-  }
-  else{
-    std::cout << result_lambda_matrix << std::endl;
+  } else {
+    std::cout << result_lambda_matrix.transpose() << std::endl;
   }
 
   std::cout << "full results: " << result_all << std::endl;
