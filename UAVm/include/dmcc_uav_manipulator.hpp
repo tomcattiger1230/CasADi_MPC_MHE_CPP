@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2022-12-12 17:54:20
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-02 22:57:54
+ * @LastEditTime: 2023-01-04 19:44:48
  * @Note: Note
  */
 
@@ -48,10 +48,16 @@ public:
                        const std::vector<double>
                            lambda,
                        std::vector<double> nu);
-  void set_constraints(
-      const std::vector<double> v, const std::vector<double> d_rpy,
-      const std::vector<double> tolerance_param,
-      const std::vector<double> high_interation);
+  void set_constraints(const std::vector<double> min_state,
+                       const std::vector<double> max_state,
+                       const std::vector<double> min_control_input,
+                       const std::vector<double> max_control_input,
+                       const double acceptable_distance,
+                       const std::vector<double> v,
+                       const std::vector<double> d_rpy,
+                       const double acceptable_velocity_difference, const double acceptable_heading_difference,
+                       const double high_interation);
+
   void get_target_position_function(ca::Function function){
     target_position_function_ = function;
   }
@@ -59,10 +65,9 @@ public:
     target_velocity_function_ = function;
   }
   void get_results();
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-
-private:
-  bool has_contact_target_;
+      private : bool has_contact_target_;
   int kappa0_;
   int num_pred_waypoints_;
   int num_def_waypoints_;
