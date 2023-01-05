@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2022-12-14 11:00:34
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-04 20:46:16
+ * @LastEditTime: 2023-01-05 20:52:00
  * @Note: Note
  */
 
@@ -67,7 +67,8 @@ void DMCCUAVManipulator::initialization_formulation(
 
   for (int i = 0; i < num_pred_waypoints_; i++) {
     obj_function_ += 0.0003 * dt_ *
-                     ca::MX::mtimes({(U(all, i) - u0).T(), Q, U(all, i) - u0});
+                     ca::MX::mtimes(ca::MX::mtimes((U(all, i) - u0).T(), Q), U(all, i) - u0
+  );
     // obj_function_ +=
     //     0.0003 * dt_ * ca::MX::dot(Q * (U(all, i) - u0).T(), (U(all, i) -
     //     u0).T());

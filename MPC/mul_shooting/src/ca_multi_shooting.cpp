@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2022-10-31 14:49:55
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-01 16:59:00
+ * @LastEditTime: 2023-01-05 20:42:18
  * @Note: Note
  */
 #include <Eigen/Dense>
@@ -44,7 +44,7 @@ Eigen::Vector3d shift_movement(double dt, double &t, std::vector<double> x0,
   Eigen::Vector3d x_e(x0.data());
   Eigen::Vector3d dx_e(dx.data());
   x_e = x_e + dt * dx_e;
-  u.erase(u.begin(), u.begin()+2);
+  u.erase(u.begin(), u.begin() + 2);
   u.push_back(*(u.end() - 1));
   u.push_back(*(u.end() - 1));
   t = t + dt;
@@ -77,12 +77,12 @@ int main() {
 
   casadi::Function integrator = one_step_integration();
 
-  casadi::DM Q(3, 3);
+  casadi::DM Q = casadi::DM::zeros(3, 3);
   Q(0, 0) = 1.0;
   Q(1, 1) = 5.0;
   Q(2, 2) = 0.1;
 
-  casadi::DM R(2, 2);
+  casadi::DM R = casadi::DM::zeros(2, 2);
   R(0, 0) = 0.5;
   R(1, 1) = 0.05;
 
@@ -210,8 +210,8 @@ int main() {
   }
 
   auto stop_time = std::chrono::high_resolution_clock::now();
-  auto duration =
-      std::chrono::duration_cast<std::chrono::microseconds>(stop_time - start_time);
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
+      stop_time - start_time);
   std::cout << "average calculation time for each iteration [s]: "
             << duration.count() / mpc_iter / 1e6 << std::endl;
   return 0;
