@@ -2,18 +2,19 @@
  * @Author: Wei Luo
  * @Date: 2023-01-06 19:47:07
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-12 22:30:37
+ * @LastEditTime: 2023-01-13 23:27:16
  * @Note: Note
  */
 #ifndef __MPC_QUADROTOR__
 #define __MPC_QUADROTOR__
+#include <Eigen/Dense>
+#include <casadi/casadi.hpp>
 #include <chrono>
 #include <iostream>
-
-#include <casadi/casadi.hpp>
 #include <math.h>
 
 namespace ca = casadi;
+
 
 class MPCQuadrotor {
 public:
@@ -24,11 +25,16 @@ public:
   virtual ~MPCQuadrotor();
   void initialization_formulation();
   void set_boundary(const std::vector<double> u_min, const std::vector<double> u_max, const std::vector<double> x_min, const std::vector<double> x_max);
-
-  ca::Function get_system_dynamics() { return system_dynamics_; };
+  void get_results(std::vector<double> init_value,
+                   std::vector<double> desired_trajectory);
+  ca::Function get_system_dynamics()
+  {
+    return system_dynamics_;
+  };
 
   int num_controls;
   int num_states;
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 private:
   double g_acceleration_;
@@ -53,6 +59,8 @@ private:
   std::vector<double> u_max_;
   std::vector<double> x_min_;
   std::vector<double> x_max_;
+
+  std::map<std::string, casadi::DM> opt_results_;
 
   template <typename T1, typename T2>
   T1 RK4_function(T1 state, T1 control, T2 dynamics)

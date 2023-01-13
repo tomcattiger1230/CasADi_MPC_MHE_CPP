@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2023-01-09 17:40:21
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-13 08:35:49
+ * @LastEditTime: 2023-01-14 00:05:57
  * @Note: Note
  */
 
@@ -142,6 +142,47 @@ void MPCQuadrotor::set_boundary(const std::vector<double> u_min,
                                 const std::vector<double> u_max,
                                 const std::vector<double> x_min,
                                 const std::vector<double> x_max) {
-  u_min_.insert(u_min_.end(), u_min.begin(), u_min.end());
-  u_max_.insert(u_max_.end(), u_max.begin(), u_max.end());
+  for (int i = 0; i < prediction_horizon_ - 1; i++) {
+    u_min_.insert(u_min_.end(), u_min.begin(), u_min.end());
+    u_max_.insert(u_max_.end(), u_max.begin(), u_max.end());
+  }
+
+  for (int i = 0; i < prediction_horizon_; i++) {
+    x_min_.insert(x_min_.end(), x_min.begin(), x_min.end());
+    x_max_.insert(x_max_.end(), x_max.begin(), x_max.end());
+  }
+}
+
+void MPCQuadrotor::get_results(std::vector<double> init_value, std::vector<double> desired_trajectory){
+  std::vector<double> lbx;
+  std::vector<double> ubx;
+
+  lbx.insert(lbx.end(), x_min_.begin(), x_min_.end());
+  lbx.insert(lbx.end(), u_min_.begin(), u_min_.end());
+  ubx.insert(ubx.end(), x_max_.begin(), x_max_.end());
+  ubx.insert(ubx.end(), u_max_.begin(), u_max_.end());
+
+  ca::DMDict arg = {{"lbx", lbx},       {"ubx", ubx},
+                    {"lbg", 0.0},       {"ubg", 0.0},
+                    {"x0", init_value}, {"p", desired_trajectory}};
+
+  auto start_time = std::chrono::high_resolution_clock::now();
+
+  opt_results_ = solver_(arg);
+
+  std::vector<double> result_all(opt_results_.at("x"));
+  std::vector<double> result_x, result_u;
+  result_x.assign(result_all.begin(),
+                  result_all.begin() + prediction_horizon_ * num_states);
+  Eigen::MatrixXd result_x_matrix =
+      Eigen::MatrixXd::Map(result_x.data(), num_states, prediction_horizon_);
+
+  result_u.assign(result_all.begin() + prediction_horizon_ * num_states,
+                  result_all.begin() + prediction_horizon_ * num_states +
+                      +(prediction_horizon_ - 1) * num_controls);
+  Eigen::MatrixXd result_u_matrix = Eigen::MatrixXd::Map(
+      result_u.data(), num_controls, prediction_horizon_ - 1);
+      std::cout << result_x_matrix.transpose() << std::endl;
+      std::cout << result_u_matrix.transpose() << std::endl;
+
 }
