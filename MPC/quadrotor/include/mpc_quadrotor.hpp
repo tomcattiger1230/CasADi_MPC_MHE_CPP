@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2023-01-06 19:47:07
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-13 23:27:16
+ * @LastEditTime: 2023-01-14 21:23:04
  * @Note: Note
  */
 #ifndef __MPC_QUADROTOR__
@@ -26,7 +26,9 @@ public:
   void initialization_formulation();
   void set_boundary(const std::vector<double> u_min, const std::vector<double> u_max, const std::vector<double> x_min, const std::vector<double> x_max);
   void get_results(std::vector<double> init_value,
-                   std::vector<double> desired_trajectory);
+                   std::vector<double> desired_trajectory,
+                   Eigen::MatrixXd &result_x_matrix,
+                   Eigen::MatrixXd &result_u_matrix);
   ca::Function get_system_dynamics()
   {
     return system_dynamics_;

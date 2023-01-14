@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2023-01-06 21:14:04
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-14 00:14:21
+ * @LastEditTime: 2023-01-14 21:21:26
  * @Note: Note
  */
 
@@ -71,7 +71,8 @@ int main() {
     opt_init.insert(opt_init.end(), init_control_std.begin(), init_control_std.end());
     std::vector<double> ref_trajectory_std(
         ref_trajectory.data(), ref_trajectory.data() + ref_trajectory.size());
-    mpc_quadrotor_handle->get_results(opt_init, ref_trajectory_std);
+    mpc_quadrotor_handle->get_results(opt_init, ref_trajectory_std, opt_x, opt_u);
+    std::cout << opt_x << std::endl;
     iter_index += 1;
   }
 

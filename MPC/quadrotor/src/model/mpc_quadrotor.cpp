@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2023-01-09 17:40:21
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-14 00:05:57
+ * @LastEditTime: 2023-01-14 21:22:49
  * @Note: Note
  */
 
@@ -153,7 +153,10 @@ void MPCQuadrotor::set_boundary(const std::vector<double> u_min,
   }
 }
 
-void MPCQuadrotor::get_results(std::vector<double> init_value, std::vector<double> desired_trajectory){
+void MPCQuadrotor::get_results(std::vector<double> init_value,
+                               std::vector<double> desired_trajectory,
+                               Eigen::MatrixXd &result_x_matrix,
+                               Eigen::MatrixXd &result_u_matrix) {
   std::vector<double> lbx;
   std::vector<double> ubx;
 
@@ -174,15 +177,14 @@ void MPCQuadrotor::get_results(std::vector<double> init_value, std::vector<doubl
   std::vector<double> result_x, result_u;
   result_x.assign(result_all.begin(),
                   result_all.begin() + prediction_horizon_ * num_states);
-  Eigen::MatrixXd result_x_matrix =
+  result_x_matrix =
       Eigen::MatrixXd::Map(result_x.data(), num_states, prediction_horizon_);
 
   result_u.assign(result_all.begin() + prediction_horizon_ * num_states,
                   result_all.begin() + prediction_horizon_ * num_states +
                       +(prediction_horizon_ - 1) * num_controls);
-  Eigen::MatrixXd result_u_matrix = Eigen::MatrixXd::Map(
-      result_u.data(), num_controls, prediction_horizon_ - 1);
-      std::cout << result_x_matrix.transpose() << std::endl;
-      std::cout << result_u_matrix.transpose() << std::endl;
-
+  result_u_matrix = Eigen::MatrixXd::Map(result_u.data(), num_controls,
+                                         prediction_horizon_ - 1);
+  std::cout << result_x_matrix.transpose() << std::endl;
+  std::cout << result_u_matrix.transpose() << std::endl;
 }
