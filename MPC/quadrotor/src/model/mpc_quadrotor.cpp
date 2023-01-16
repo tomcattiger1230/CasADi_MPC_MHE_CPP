@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2023-01-09 17:40:21
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-14 21:22:49
+ * @LastEditTime: 2023-01-15 22:17:11
  * @Note: Note
  */
 
@@ -169,8 +169,6 @@ void MPCQuadrotor::get_results(std::vector<double> init_value,
                     {"lbg", 0.0},       {"ubg", 0.0},
                     {"x0", init_value}, {"p", desired_trajectory}};
 
-  auto start_time = std::chrono::high_resolution_clock::now();
-
   opt_results_ = solver_(arg);
 
   std::vector<double> result_all(opt_results_.at("x"));
@@ -185,6 +183,20 @@ void MPCQuadrotor::get_results(std::vector<double> init_value,
                       +(prediction_horizon_ - 1) * num_controls);
   result_u_matrix = Eigen::MatrixXd::Map(result_u.data(), num_controls,
                                          prediction_horizon_ - 1);
-  std::cout << result_x_matrix.transpose() << std::endl;
-  std::cout << result_u_matrix.transpose() << std::endl;
+}
+
+void MPCQuadrotor::model_based_movement(Eigen::VectorXd &state,
+                                        Eigen::VectorXd control,
+                                        Eigen::MatrixXd &guessed_state,
+                                        Eigen::MatrixXd &guessed_control) {
+  Eigen::VectorXd k1 = dyn_function_eigen(state, control);
+  Eigen::VectorXd k2 = dyn_function_eigen(state + dt_ / 2.0 * k1, control);
+  Eigen::VectorXd k3 = dyn_function_eigen(state + dt_ / 2.0 * k2, control);
+  Eigen::VectorXd k4 = dyn_function_eigen(state + dt_ * k3, control);
+  state +=
+      dt_ / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4);
+  guessed_state(Eigen::all, Eigen::seqN(0, guessed_state.cols() - 1)) =
+      guessed_state(Eigen::all, Eigen::seqN(1, guessed_state.cols() ));
+  guessed_control(Eigen::all, Eigen::seqN(0, guessed_control.cols() - 1)) =
+      guessed_control(Eigen::all, Eigen::seqN(1, guessed_control.cols()));
 }
