@@ -9,7 +9,7 @@ find_package(casadi REQUIRED)
 find_package(PkgConfig)
 pkg_search_module(Eigen3 REQUIRED eigen3)
 include_directories(${Eigen3_INCLUDE_DIRS})
-
+include_directories(include)
 add_subdirectory(MPC)
 add_subdirectory(UAVm)
 
