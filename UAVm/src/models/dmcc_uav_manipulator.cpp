@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2022-12-14 11:00:34
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-05 20:52:00
+ * @LastEditTime: 2023-01-17 16:09:16
  * @Note: Note
  */
 
@@ -59,10 +59,11 @@ void DMCCUAVManipulator::initialization_formulation(
 
   obj_function_ = Tn;
   ca::DM u0 = ca::DM({1.0, 1.0, 1.0, 1.0, 0.0}) *
-              (mass_quadrotor_ + mass_manipulator_) * g_ / 4.0;
+              (mass_quadrotor_ + mass_manipulator_) * g_acceleration_ / 4.0;
   std::cout << mass_quadrotor_ << std::endl;
   std::cout << mass_manipulator_ << std::endl;
-  std::cout << (mass_quadrotor_ + mass_manipulator_) * g_ / 4.0 << std::endl;
+  std::cout << (mass_quadrotor_ + mass_manipulator_) * g_acceleration_ / 4.0
+            << std::endl;
   ca::DM Q = ca::DM::eye(5) * 10.0;
 
   for (int i = 0; i < num_pred_waypoints_; i++) {
@@ -401,10 +402,11 @@ void DMCCUAVManipulator::init_state_guess(
   Eigen::MatrixXd u0_eigen =
       Eigen::MatrixXd::Zero(num_controls_, num_pred_waypoints_);
   for (int i = 0; i < num_pred_waypoints_; i++) {
-    u0_eigen.col(i) << (mass_quadrotor_ + mass_manipulator_) * g_ * 0.25,
-        (mass_quadrotor_ + mass_manipulator_) * g_ * 0.25,
-        (mass_quadrotor_ + mass_manipulator_) * g_ * 0.25,
-        (mass_quadrotor_ + mass_manipulator_) * g_ * 0.25, 0.0;
+    u0_eigen.col(i) << (mass_quadrotor_ + mass_manipulator_) * g_acceleration_ *
+                           0.25,
+        (mass_quadrotor_ + mass_manipulator_) * g_acceleration_ * 0.25,
+        (mass_quadrotor_ + mass_manipulator_) * g_acceleration_ * 0.25,
+        (mass_quadrotor_ + mass_manipulator_) * g_acceleration_ * 0.25, 0.0;
   }
 
   std::cout << u0_eigen << std::endl;

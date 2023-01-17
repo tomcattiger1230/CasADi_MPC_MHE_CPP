@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2022-12-12 17:55:51
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-04 18:00:36
+ * @LastEditTime: 2023-01-17 19:53:06
  * @Note: Note
  */
 
@@ -18,7 +18,7 @@ namespace ca = casadi;
 
 class DMCCBase {
 public:
-  double g_; // acceleration
+  double g_acceleration_; // acceleration
   double arm_length_ = 0.0;
   double nominal_arm_distance_;
   double mass_quadrotor_;
@@ -31,6 +31,18 @@ public:
   int num_controls_;
   int num_dofs_; // same as size of q
   int num_states_; // number of states,
+
+  ca::Function derivative_lagrangian_function_;
+  ca::Function lagrangian_function_;
+  ca::Function external_force_function_;
+
+  ca::Function get_external_force_function() { return external_force_function_; }
+
+  ca::Function get_lagrangian_function() { return lagrangian_function_; }
+
+  ca::Function get_derivative_lagrangian_function() {
+    return derivative_lagrangian_function_;
+  }
 
   template <typename T> T rotation_matrix(const T angle) {
     T phi = angle(0);

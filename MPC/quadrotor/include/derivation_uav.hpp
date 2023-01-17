@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2023-01-05 22:29:49
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-16 23:43:36
+ * @LastEditTime: 2023-01-17 20:40:52
  * @Note: Note
  */
 
@@ -20,24 +20,17 @@ public:
                 const std::vector<double> I_quadrotor, const double frame_size,
                 const double motor_torque_const) {
     g_acceleration_ = g;
-    // I_quadrotor_ = Eigen::Vector3d::Map(I_quadrotor.data(), 3);
     I_quadrotor_ = I_quadrotor;
     frame_size_ = frame_size;
     motor_torque_const_ = motor_torque_const;
-
     get_Lagrangian_casadi();
   }
 
-private:
-  double g_acceleration_;
-  double mass_quadrotor_;
-//   Eigen::Vector3d I_quadrotor_;
-  std::vector<double> I_quadrotor_;
-  double frame_size_;
-  double motor_torque_const_;
+  ca::Function get_system_dynamics() { return system_dynamics_function_; }
 
-  int num_dofs_;
-  int num_states_;
+  private:
+  double motor_torque_const_;
+  ca::Function system_dynamics_function_;
 
   void get_Lagrangian_casadi(){
     // state
@@ -106,6 +99,40 @@ private:
     Ib(2, 2) = I_quadrotor_[2];
 
     ca::MX K = 0.5 * mass_quadrotor_ * ca::MX::mtimes({q(ca::Slice(0, 3)).T(), q(ca::Slice(0, 3))}) + 0.5 * ca::MX::mtimes({bW.T(), Ib, bW});
+
+    ca::MX U = mass_quadrotor_ * g_acceleration_ * ca::MX::mtimes({e3.T(), q(ca::Slice(0, 3))});
+
+    ca::MX L = K - U;
+
+    lagrangian_function_ = ca::Function("function_lagrangian", {q, d_q}, {L});
+
+    ca::MX L_d_dot_q = ca::MX::gradient(L, d_q);
+    derivative_lagrangian_function_ = ca::Function("derivative_lagrangian_function", {q, d_q}, {L_d_dot_q});
+
+    // external forces
+    ca::MX U1 = ca::MX::sym("U1");
+    ca::MX U2 = ca::MX::sym("U2");
+    ca::MX U3 = ca::MX::sym("U3");
+    ca::MX U4 = ca::MX::sym("U4");
+    ca::MX input_vec = ca::MX::vertcat({U1, U2, U3, U4});
+
+    num_controls_ = input_vec.size().first;
+
+    ca::MX total_force_local = U1 + U2 + U3 + U4;
+    ca::MX total_force_global = total_force_local * ca::MX::mtimes({eRb, e3});
+
+    ca::MX moment_x = (U2 + U3 - U1 - U4) * frame_size_ / 2.0 / std::sqrt(2);
+    ca::MX moment_y = (U2 + U4 - U1 - U3) * frame_size_ / 2.0 / std::sqrt(2);
+    ca::MX moment_z = (U3 + U4 - U1 - U2) * motor_torque_const_;
+
+    ca::MX external_forces = ca::MX::vertcat(
+        {total_force_global, moment_x, moment_y, moment_z});
+
+    external_force_function_ =
+        ca::Function("external_force", {q, input_vec}, {external_forces});
+
+    // system_dynamics_function_ = ca::Function(
+    //     "system_dynamics", {full_state, input_vec}, {external_forces});
   }
 };
 

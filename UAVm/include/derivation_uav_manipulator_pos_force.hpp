@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2022-11-30 15:49:20
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-16 22:50:44
+ * @LastEditTime: 2023-01-17 19:54:18
  * @Note: Note
  */
 
@@ -22,7 +22,7 @@ public:
                  const double motor_torque_const,
                  const std::vector<double> montage_offset_b) {
     // set up parameters
-    g_ = g;
+    g_acceleration_ = g;
     arm_length_ = arm_length;
     mass_manipulator_ = mass_arm;
     mass_quadrotor_ = mass_quad;
@@ -47,25 +47,13 @@ public:
     return end_velocity_function;
   }
 
-  ca::Function get_external_force_function() {
-    return external_force_function;
-  }
 
-  ca::Function get_lagrangian_function() { return lagrangian_function; }
-
-  ca::Function get_derivative_lagrangian_function() {
-    return derivative_lagrangian_function;
-  }
 
 private:
   double motor_torque_const_;
 
   ca::Function end_position_function;
   ca::Function end_velocity_function;
-
-  ca::Function external_force_function;
-  ca::Function derivative_lagrangian_function;
-  ca::Function lagrangian_function;
 
   void get_Lagrangian_casadi() {
     ca::MX x = ca::MX::sym("x");
@@ -182,17 +170,19 @@ private:
     ca::MX K_total = K_quad + K_arm;
 
     // potential energy
-    ca::MX U_quad = mass_quadrotor_ * g_ * ca::MX::mtimes({e3.T(), pos});
-    ca::MX U_arm = mass_manipulator_ * g_ * ca::MX::mtimes({e3.T(), e0});
+    ca::MX U_quad =
+        mass_quadrotor_ * g_acceleration_ * ca::MX::mtimes({e3.T(), pos});
+    ca::MX U_arm =
+        mass_manipulator_ * g_acceleration_ * ca::MX::mtimes({e3.T(), e0});
     ca::MX U_total = U_quad + U_arm;
 
     ca::MX L = K_total - U_total;
 
-    lagrangian_function = ca::Function("function_L", {q, d_q}, {L});
+    lagrangian_function_ = ca::Function("function_L", {q, d_q}, {L});
 
     ca::MX L_d_dot_q = ca::MX::gradient(L, d_q);
 
-    derivative_lagrangian_function =
+    derivative_lagrangian_function_ =
         ca::Function("function_lagrangian_derivative", {q, d_q}, {L_d_dot_q});
 
     // motor
@@ -215,7 +205,7 @@ private:
     ca::MX external_forces = ca::MX::vertcat(
         {total_force_global, moment_x, moment_y - tau_m, moment_z, tau_m});
 
-    external_force_function = ca::Function("external_force_function",
+    external_force_function_ = ca::Function("external_force_function",
                                            {q, input_vec}, {external_forces});
 
     ca::MX b_Mani_End = ca::MX::zeros(3, 1);
