@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2022-12-14 11:00:34
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-17 16:09:16
+ * @LastEditTime: 2023-01-18 16:52:49
  * @Note: Note
  */
 
@@ -114,7 +114,7 @@ void DMCCUAVManipulator::initialization_formulation(
       ca::Function("dEl_end", {q_b, q_b_dot, q_nm1, q_n}, {-D2L + D2L_d});
 
   // waypoint connection
-  for (int i = 0; i < num_pred_waypoints_ - 1; ++i) {
+  for (int i = 1; i < num_pred_waypoints_ - 1; ++i) {
     auto f_d_nm1 = discrete_forces(dt_, get_external_force_function(),
                                    (ca::MX)X(all, i - 1), (ca::MX)U(all, i - 1),
                                    (ca::MX)U(all, i));
@@ -124,8 +124,8 @@ void DMCCUAVManipulator::initialization_formulation(
     std::vector<ca::MX> input(3);
     input[0] = X(all, i - 1);
     input[1] = X(all, i);
-    input[2] = X(all, i + 1) + f_d_nm1 + f_d_n;
-    auto sum = derivative_EulerLagrange_function(input).at(0);
+    input[2] = X(all, i + 1) ;
+    auto sum = derivative_EulerLagrange_function(input).at(0) + f_d_nm1 + f_d_n;
     constraint_vector_std_.push_back(sum);
   }
 
