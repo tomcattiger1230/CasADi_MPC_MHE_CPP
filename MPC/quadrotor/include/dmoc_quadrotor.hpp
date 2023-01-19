@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2023-01-05 22:33:44
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-18 17:49:06
+ * @LastEditTime: 2023-01-19 14:41:40
  * @Note: Note
  */
 
@@ -21,8 +21,8 @@ public:
   void initialization_formulation();
   void
   set_boundary(const std::vector<double> u_min, const std::vector<double> u_max,
-               const std::vector<double> x_min,
-               const std::vector<double> x_max);
+               const std::vector<double> x_min, const std::vector<double> x_max,
+               const std::vector<double> v, const std::vector<double> d_rpy);
   void get_results(std::vector<double> init_value,
                    std::vector<double> desired_trajectory,
                    Eigen::MatrixXd &result_x_matrix,
@@ -41,8 +41,11 @@ private:
   std::vector<double> u_max_;
   std::vector<double> x_min_;
   std::vector<double> x_max_;
+  std::vector<double> lbg_;
+  std::vector<double> ubg_;
 
   std::map<std::string, casadi::DM> opt_results_;
+  int number_equality_constraint_;
 };
 
 #endif

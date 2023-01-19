@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2023-01-05 22:34:11
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-18 17:59:13
+ * @LastEditTime: 2023-01-19 16:24:21
  * @Note: Note
  */
 
@@ -25,6 +25,7 @@ void DMOCUAV::initialization_formulation() {
   // MPC
   ca::MX U = ca::MX::sym("U", num_controls_, prediction_horizon_);
   ca::MX X = ca::MX::sym("X", num_dofs_, prediction_horizon_);
+  // ca::MX current_state_ref = ca::MX::sym("current_state_ref", num_states_);
   ca::MX X_ref = ca::MX::sym("X_ref", num_states_, prediction_horizon_);
 
   ca::DM P_m = ca::DM::zeros(6, 6);
@@ -46,23 +47,22 @@ void DMOCUAV::initialization_formulation() {
   R_m(1, 1) = 10.0;
   R_m(2, 2) = 10.0;
   R_m(3, 3) = 10.0;
-  ca::DM ref_u = ca::DM::zeros(4);
-  ref_u(0) = 0.25 * mass_quadrotor_ * g_acceleration_;
-  ref_u(1) = 0.25 * mass_quadrotor_ * g_acceleration_;
-  ref_u(2) = 0.25 * mass_quadrotor_ * g_acceleration_;
-  ref_u(3) = 0.25 * mass_quadrotor_ * g_acceleration_;
 
-  ca::MX obj;
+  ca::DM ref_u = ca::DM({1.0, 1.0, 1.0, 1.0}) *
+                 mass_quadrotor_  * g_acceleration_ / 4.0;
+
+  ca::MX obj = 0.0;
 
   // control cost
   for (int i = 0; i < prediction_horizon_; i++) {
-    ca::MX temp_ = U(ca::Slice(0, 4), i) - ref_u;
+    ca::MX temp_ = U(slice_all, i) - ref_u;
     obj += ca::MX::mtimes({temp_.T(), R_m, temp_});
   }
   // state cost
   for (int i = 0; i < prediction_horizon_; i++) {
-    obj = ca::MX::mtimes({(X(slice_state_, i) - X_ref(slice_state_, i)).T(),
-                          P_m, X(slice_state_, i) - X_ref(slice_state_, i)});
+    ca::MX temp_ = X(slice_state_, i) - X_ref(slice_state_, i);
+    obj +=
+        ca::MX::mtimes({temp_.T(), P_m, temp_});
   }
 
   // discrete lagrangian
@@ -88,9 +88,11 @@ void DMOCUAV::initialization_formulation() {
   // constraints
   std::vector<ca::MX> constraint_vector;
 
+  // constraint_vector.push_back(X(slice_state_, 0) -
+  //                                 ca::MX::reshape(current_state_ref(slice_state_), -1, 1));
   constraint_vector.push_back(X(slice_state_, 0) - X_ref(slice_state_, 0));
 
-  for (int i = 1; i < prediction_horizon_ - 1; ++i) {
+  for (int i = 1; i < prediction_horizon_ - 1; i++) {
     ca::MX f_d_nm1 = discrete_forces(
         dt_, external_force_function, (ca::MX)X(slice_all, i - 1),
         (ca::MX)U(slice_all, i - 1), (ca::MX)U(slice_all, i));
@@ -117,15 +119,31 @@ void DMOCUAV::initialization_formulation() {
   constraint_vector.push_back(
       d_EulerLagrange_init_function(input_vector).at(0) + f_0);
 
-  casadi::MXDict nlp = {{"x", ca::MX::vertcat({ca::MX::reshape(X, -1, 1),
-                                               ca::MX::reshape(U, -1, 1)})},
-                        {"f", obj},
-                        {"p", ca::MX::reshape(X_ref, -1, 1)},
-                        {"g", ca::MX::vertcat(constraint_vector)}};
+  number_equality_constraint_ = ca::MX::vertcat(constraint_vector).size().first;
+
+  std::cout << "number of equal constraints: " << number_equality_constraint_
+            << std::endl;
+
+  // velocity constraints
+  for (int i = 0; i < prediction_horizon_ - 1; ++i) {
+    constraint_vector.push_back(average_velocity(
+        dt_, (ca::MX)X(slice_all, i), (ca::MX)X(slice_all, i + 1), 6));
+  }
+
+  casadi::MXDict nlp = {
+      {"x",
+       ca::MX::vertcat({ca::MX::reshape(X, -1, 1), ca::MX::reshape(U, -1, 1)})},
+      {"f", obj},
+      {"p", ca::MX::reshape(X_ref, -1, 1)},
+      {"g",
+       ca::MX::vertcat(
+           constraint_vector)}}; // {"p",
+                                 // ca::MX::vertcat({ca::MX::reshape(current_state_ref,
+                                 // -1, 1), ca::MX::reshape(X_ref, -1, 1)})},
   std::string solver_name = "ipopt";
   casadi::Dict solver_opts;
   solver_opts["expand"] = true;
-  solver_opts["ipopt.max_iter"] = 100;
+  solver_opts["ipopt.max_iter"] = 1000;
   solver_opts["ipopt.print_level"] = 3;
   solver_opts["print_time"] = 0;
   solver_opts["ipopt.acceptable_tol"] = 1e-8;
@@ -134,15 +152,32 @@ void DMOCUAV::initialization_formulation() {
   solver_ = casadi::nlpsol("nlpsol", solver_name, nlp, solver_opts);
 }
 
-void DMOCUAV::set_boundary(const std::vector<double> u_min,
-                           const std::vector<double> u_max,
-                           const std::vector<double> x_min,
-                           const std::vector<double> x_max) {
+void DMOCUAV::set_boundary(
+    const std::vector<double> u_min, const std::vector<double> u_max,
+    const std::vector<double> x_min,
+    const std::vector<double> x_max, const std::vector<double> v,
+    const std::vector<double> d_rpy) {
   for (int i = 0; i < prediction_horizon_; i++) {
     u_min_.insert(u_min_.end(), u_min.begin(), u_min.end());
     u_max_.insert(u_max_.end(), u_max.begin(), u_max.end());
     x_min_.insert(x_min_.end(), x_min.begin(), x_min.end());
     x_max_.insert(x_max_.end(), x_max.begin(), x_max.end());
+  }
+
+  for (int i = 0; i < number_equality_constraint_; i++) {
+    lbg_.push_back(0.0);
+    ubg_.push_back(0.0);
+  }
+
+  for (int i = 0; i < prediction_horizon_ - 1; i++) {
+    for (int j = 0; j < v.size(); j++) {
+      lbg_.push_back(-v[j]);
+      ubg_.push_back(v[j]);
+    }
+    for (int j = 0; j < d_rpy.size(); j++) {
+      lbg_.push_back(-d_rpy[j]);
+      ubg_.push_back(d_rpy[j]);
+    }
   }
 }
 
@@ -158,8 +193,10 @@ void DMOCUAV::get_results(std::vector<double> init_value,
   ubx.insert(ubx.end(), x_max_.begin(), x_max_.end());
   ubx.insert(ubx.end(), u_max_.begin(), u_max_.end());
 
+  std::cout<< lbx.size() << ":" << ubx.size() << std::endl;
+
   ca::DMDict arg = {{"lbx", lbx},       {"ubx", ubx},
-                    {"lbg", 0.0},       {"ubg", 0.0},
+                    {"lbg", lbg_},       {"ubg", ubg_},
                     {"x0", init_value}, {"p", desired_trajectory}};
 
   opt_results_ = solver_(arg);

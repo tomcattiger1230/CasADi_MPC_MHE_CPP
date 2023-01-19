@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2023-01-09 17:40:21
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-18 17:47:32
+ * @LastEditTime: 2023-01-19 15:46:09
  * @Note: Note
  */
 
@@ -130,7 +130,7 @@ void MPCQuadrotor::initialization_formulation() {
   casadi::Dict solver_opts;
   solver_opts["expand"] = true;
   solver_opts["ipopt.max_iter"] = 100;
-  solver_opts["ipopt.print_level"] = 0;
+  solver_opts["ipopt.print_level"] = 3;
   solver_opts["print_time"] = 0;
   solver_opts["ipopt.acceptable_tol"] = 1e-8;
   solver_opts["ipopt.acceptable_obj_change_tol"] = 1e-6;

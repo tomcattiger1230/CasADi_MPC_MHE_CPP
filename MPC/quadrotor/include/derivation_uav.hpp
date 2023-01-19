@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2023-01-05 22:29:49
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-17 20:40:52
+ * @LastEditTime: 2023-01-19 15:18:44
  * @Note: Note
  */
 
@@ -92,15 +92,28 @@ public:
     T_matrix(2, 1) = -ca::MX::sin(phi);
     T_matrix(2, 2) = ca::MX::cos(phi) * ca::MX::cos(theta);
 
-    ca::MX bW = ca::MX::mtimes({T_matrix, d_q(ca::Slice(3, 6))});
-    ca::DM Ib = ca::DM::zeros(3, 3);
-    Ib(0, 0) = I_quadrotor_[0];
-    Ib(1, 1) = I_quadrotor_[1];
-    Ib(2, 2) = I_quadrotor_[2];
+    // ca::MX bW = ca::MX::mtimes({T_matrix, d_q(ca::Slice(3, 6))});
+    ca::MX angle_rate = ca::MX::vertcat({d_phi, d_theta, d_psi});
+    ca::MX bW = ca::MX::mtimes({T_matrix, angle_rate});
 
-    ca::MX K = 0.5 * mass_quadrotor_ * ca::MX::mtimes({q(ca::Slice(0, 3)).T(), q(ca::Slice(0, 3))}) + 0.5 * ca::MX::mtimes({bW.T(), Ib, bW});
+    // ca::DM Ib = ca::DM::zeros(3, 3);
+    // Ib(0, 0) = I_quadrotor_[0];
+    // Ib(1, 1) = I_quadrotor_[1];
+    // Ib(2, 2) = I_quadrotor_[2];
+    ca::DM Ib = ca::DM::diag(I_quadrotor_);
 
-    ca::MX U = mass_quadrotor_ * g_acceleration_ * ca::MX::mtimes({e3.T(), q(ca::Slice(0, 3))});
+    // ca::MX K =
+    //     0.5 * mass_quadrotor_ *
+    //         ca::MX::mtimes({q(ca::Slice(0, 3)).T(), q(ca::Slice(0, 3))}) +
+    //     0.5 * ca::MX::mtimes({bW.T(), Ib, bW});
+    ca::MX K = 0.5 * mass_quadrotor_ *
+                   ca::MX::mtimes({d_position_vector.T(), d_position_vector}) +
+               0.5 * ca::MX::mtimes({bW.T(), Ib, bW});
+
+    // ca::MX U = mass_quadrotor_ * g_acceleration_ *
+    //            ca::MX::mtimes({e3.T(), q(ca::Slice(0, 3))});
+    ca::MX U = mass_quadrotor_ * g_acceleration_ *
+               ca::MX::mtimes({e3.T(), position_vector});
 
     ca::MX L = K - U;
 

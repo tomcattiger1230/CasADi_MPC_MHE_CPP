@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2022-12-12 17:55:51
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-18 17:13:09
+ * @LastEditTime: 2023-01-19 14:43:46
  * @Note: Note
  */
 
@@ -226,6 +226,24 @@ public:
                                       (T) state_2(ca::Slice(3, 6)), dt);
     //   if (num_dof == 7)
     //     d_q(6) = T::atan2(T::sin(d_q(6)), T::cos(d_q(6))) / dt;
+    }
+
+    return d_q;
+  }
+
+  template <typename T>
+  T average_velocity(double dt, T state_1, T state_2, int num_dof = 6) {
+    auto d_q = (state_2 - state_1);
+
+    for (int i = 0; i < 3; i++) {
+      d_q(i) = d_q(i) / dt;
+    }
+
+    if (num_dof > 3) {
+      d_q(slice_rpy) = difference_rpy((T)state_1(ca::Slice(3, 6)),
+                                      (T)state_2(ca::Slice(3, 6)), dt);
+      //   if (num_dof == 7)
+      //     d_q(6) = T::atan2(T::sin(d_q(6)), T::cos(d_q(6))) / dt;
     }
 
     return d_q;

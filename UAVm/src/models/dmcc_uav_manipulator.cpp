@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2022-12-14 11:00:34
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-18 16:52:49
+ * @LastEditTime: 2023-01-19 14:03:33
  * @Note: Note
  */
 
@@ -139,8 +139,8 @@ void DMCCUAVManipulator::initialization_formulation(
   input[0] = init_pose(ca::Slice(0, num_dofs_));
   input[1] = init_pose(ca::Slice(num_dofs_, 2 * num_dofs_));
   input[2] = X(all, 0);
-  input[3] = X(all, 1) + f_0;
-  auto init_condition = d_EulerLagrange_init_function(input).at(0);
+  input[3] = X(all, 1);
+  auto init_condition = d_EulerLagrange_init_function(input).at(0) + f_0;
   constraint_vector_std_.push_back(init_condition);
 
   auto f_N_1 = discrete_forces(dt_, get_external_force_function(),
@@ -153,9 +153,9 @@ void DMCCUAVManipulator::initialization_formulation(
   input[0] = waypoint_reference(ca::Slice(0, num_dofs_), -1);
   input[1] = waypoint_reference(ca::Slice(num_dofs_, 2 * num_dofs_), -1);
   input[2] = X(all, num_pred_waypoints_ - 2);
-  input[3] = X(all, num_pred_waypoints_ - 1) + f_N_1;
+  input[3] = X(all, num_pred_waypoints_ - 1);
 
-  auto end_condition = d_EulerLagrange_end_function(input).at(0);
+  auto end_condition = d_EulerLagrange_end_function(input).at(0) + f_N_1;
   constraint_vector_std_.push_back(end_condition);
 
   if (has_contact_target_) {
