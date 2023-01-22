@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2023-01-05 22:35:40
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-19 16:21:01
+ * @LastEditTime: 2023-01-19 16:28:39
  * @Note: Note
  */
 
@@ -24,7 +24,7 @@ int main() {
   dmoc_uav_handle->initialization_formulation();
 
   Eigen::VectorXd current_state(12);
-  current_state << 0, 0.1, 0.2, 0, 0, 0, 0.0, 0.04, 0, 0, 0, 0;
+  current_state << -0.1, 0.1, 0.2, 0, 0, 0.1, 0.0, 0.04, 0, 0, 0, 0;
   Eigen::MatrixXd init_trajectory(12, 20);
   init_trajectory.block<12, 1>(0, 0) << 0, 0, 0.2, 0, 0, 0, 0, 0, 0, 0, 0, 0;
   init_trajectory.block<12, 1>(0, 1) << 0, 0, 0.4, 0, 0, 0.01, 0, 0, 0, 0, 0, 0;
@@ -103,7 +103,7 @@ int main() {
   const int max_iter = 1;
   Eigen::MatrixXd opt_x = Eigen::MatrixXd::Zero(6, 20);
   Eigen::MatrixXd opt_u = Eigen::MatrixXd::Zero(4, 20);
-  // opt_u = Eigen::MatrixXd::Constant(4, 20, hover_force);
+  opt_u = Eigen::MatrixXd::Constant(4, 20, hover_force);
   Eigen::MatrixXd ref_trajectory = init_trajectory;
   std::vector<Eigen::VectorXd> real_trajectory_std;
   real_trajectory_std.push_back(current_state);
