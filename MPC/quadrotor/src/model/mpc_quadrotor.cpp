@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2023-01-09 17:40:21
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-19 15:46:09
+ * @LastEditTime: 2023-02-08 17:54:06
  * @Note: Note
  */
 
@@ -134,6 +134,8 @@ void MPCQuadrotor::initialization_formulation() {
   solver_opts["print_time"] = 0;
   solver_opts["ipopt.acceptable_tol"] = 1e-8;
   solver_opts["ipopt.acceptable_obj_change_tol"] = 1e-6;
+  // std::string solver_name = "snopt";
+  // casadi::Dict solver_opts;
 
   solver_ = casadi::nlpsol("nlpsol", solver_name, nlp, solver_opts);
 }
