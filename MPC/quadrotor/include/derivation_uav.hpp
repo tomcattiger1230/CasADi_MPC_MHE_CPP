@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2023-01-05 22:29:49
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-19 15:18:44
+ * @LastEditTime: 2023-02-09 17:00:02
  * @Note: Note
  */
 
@@ -20,9 +20,11 @@ public:
                 const std::vector<double> I_quadrotor, const double frame_size,
                 const double motor_torque_const) {
     g_acceleration_ = g;
+
     I_quadrotor_ = I_quadrotor;
     frame_size_ = frame_size;
     motor_torque_const_ = motor_torque_const;
+    mass_quadrotor_ = mass_quadrotor;
     get_Lagrangian_casadi();
   }
 
@@ -112,8 +114,8 @@ public:
 
     // ca::MX U = mass_quadrotor_ * g_acceleration_ *
     //            ca::MX::mtimes({e3.T(), q(ca::Slice(0, 3))});
-    ca::MX U = mass_quadrotor_ * g_acceleration_ *
-               ca::MX::mtimes({e3.T(), position_vector});
+    ca::MX U = mass_quadrotor_ * g_acceleration_ * q(2);
+    // ca::MX::mtimes({e3.T(), position_vector});
 
     ca::MX L = K - U;
 

@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2023-01-05 22:34:11
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-01-21 18:12:17
+ * @LastEditTime: 2023-02-09 17:50:15
  * @Note: Note
  */
 
@@ -34,7 +34,7 @@ void DMOCUAV::initialization_formulation() {
   P_m(2, 2) = 120.95;
   P_m(3, 3) = 6.94;
   P_m(4, 4) = 6.94;
-  P_m(5, 5) = 11.04;
+  P_m(5, 5) = 110.04;
   P_m(0, 3) = 6.45;
   P_m(3, 0) = 6.45;
   P_m(1, 4) = 6.45;
@@ -48,8 +48,13 @@ void DMOCUAV::initialization_formulation() {
   R_m(2, 2) = 10.0;
   R_m(3, 3) = 10.0;
 
-  ca::DM ref_u = ca::DM({1.0, 1.0, 1.0, 1.0}) *
-                 mass_quadrotor_  * g_acceleration_ / 4.0;
+  ca::DM ref_u =
+      ca::DM({1.0, 1.0, 1.0, 1.0}) * mass_quadrotor_ * g_acceleration_ / 4.0;
+  // std::cout << "mass" << mass_quadrotor_ << std::endl;
+  // std::cout << g_acceleration_ << std::endl;
+  // std::cout << "single u " << mass_quadrotor_ * g_acceleration_ / 4.0 <<
+  // std::endl; std::cout
+  //     << "reference u = " << ref_u << std::endl;
 
   ca::MX obj = 0.0;
 
@@ -61,8 +66,7 @@ void DMOCUAV::initialization_formulation() {
   // state cost
   for (int i = 0; i < prediction_horizon_; i++) {
     ca::MX temp_ = X(slice_state_, i) - X_ref(slice_state_, i);
-    obj +=
-        ca::MX::mtimes({temp_.T(), P_m, temp_});
+    obj += ca::MX::mtimes({temp_.T(), P_m, temp_});
   }
 
   // discrete lagrangian
@@ -88,9 +92,7 @@ void DMOCUAV::initialization_formulation() {
   // constraints
   std::vector<ca::MX> constraint_vector;
 
-  // constraint_vector.push_back(X(slice_state_, 0) -
-  //                                 ca::MX::reshape(current_state_ref(slice_state_), -1, 1));
-  constraint_vector.push_back(X(slice_state_, 0) - X_ref(slice_state_, 0));
+  constraint_vector.push_back(X(slice_all, 0) - X_ref(slice_state_, 0));
 
   for (int i = 1; i < prediction_horizon_ - 1; i++) {
     ca::MX f_d_nm1 = discrete_forces(
@@ -123,11 +125,11 @@ void DMOCUAV::initialization_formulation() {
 
   std::cout << "number of equal constraints: " << number_equality_constraint_
             << std::endl;
-
   // velocity constraints
   for (int i = 0; i < prediction_horizon_ - 1; ++i) {
     constraint_vector.push_back(average_velocity(
-        dt_, (ca::MX)X(slice_all, i), (ca::MX)X(slice_all, i + 1), 6));
+        dt_, (ca::MX)X(slice_all, i), (ca::MX)X(slice_all, i + 1),
+        6));
   }
 
   casadi::MXDict nlp = {
@@ -143,8 +145,8 @@ void DMOCUAV::initialization_formulation() {
   std::string solver_name = "ipopt";
   casadi::Dict solver_opts;
   solver_opts["expand"] = true;
-  solver_opts["ipopt.max_iter"] = 1000;
-  solver_opts["ipopt.print_level"] = 3;
+  solver_opts["ipopt.max_iter"] = 100;
+  solver_opts["ipopt.print_level"] = 0;
   solver_opts["print_time"] = 0;
   solver_opts["ipopt.acceptable_tol"] = 1e-8;
   solver_opts["ipopt.acceptable_obj_change_tol"] = 1e-6;
@@ -152,11 +154,12 @@ void DMOCUAV::initialization_formulation() {
   solver_ = casadi::nlpsol("nlpsol", solver_name, nlp, solver_opts);
 }
 
-void DMOCUAV::set_boundary(
-    const std::vector<double> u_min, const std::vector<double> u_max,
-    const std::vector<double> x_min,
-    const std::vector<double> x_max, const std::vector<double> v,
-    const std::vector<double> d_rpy) {
+void DMOCUAV::set_boundary(const std::vector<double> u_min,
+                           const std::vector<double> u_max,
+                           const std::vector<double> x_min,
+                           const std::vector<double> x_max,
+                           const std::vector<double> v,
+                           const std::vector<double> d_rpy) {
   for (int i = 0; i < prediction_horizon_; i++) {
     u_min_.insert(u_min_.end(), u_min.begin(), u_min.end());
     u_max_.insert(u_max_.end(), u_max.begin(), u_max.end());
@@ -193,8 +196,6 @@ void DMOCUAV::get_results(std::vector<double> init_value,
   ubx.insert(ubx.end(), x_max_.begin(), x_max_.end());
   ubx.insert(ubx.end(), u_max_.begin(), u_max_.end());
 
-  std::cout<< lbx.size() << ":" << ubx.size() << std::endl;
-
   ca::DMDict arg = {{"lbx", lbx},       {"ubx", ubx},
                     {"lbg", lbg_},       {"ubg", ubg_},
                     {"x0", init_value}, {"p", desired_trajectory}};
@@ -210,7 +211,52 @@ void DMOCUAV::get_results(std::vector<double> init_value,
 
   result_u.assign(result_all.begin() + prediction_horizon_ * num_dofs_,
                   result_all.begin() + prediction_horizon_ * num_dofs_ +
-                      +prediction_horizon_  * num_controls_);
-  result_u_matrix = Eigen::MatrixXd::Map(result_u.data(), num_controls_,
-                                         prediction_horizon_);
+                      +prediction_horizon_ * num_controls_);
+  result_u_matrix =
+      Eigen::MatrixXd::Map(result_u.data(), num_controls_, prediction_horizon_);
+}
+
+void DMOCUAV::model_based_movement(Eigen::VectorXd &state,
+                                   Eigen::VectorXd control,
+                                   Eigen::MatrixXd &guessed_state,
+                                   Eigen::MatrixXd &guessed_control) {
+  Eigen::VectorXd current_state(9);
+  Eigen::VectorXd desired_angle = guessed_state(Eigen::seqN(3, 3), 1);
+  Eigen::VectorXd current_control(3);
+  // std::cout << guessed_control.col(0).sum()<< " , " << guessed_control.col(1).sum()
+            // << std::endl;
+  // std::cout << mass_quadrotor_ << std::endl;
+  current_control << desired_angle[0],
+      desired_angle[1],
+      (guessed_control.col(0).sum() + guessed_control.col(1).sum()) / 2.0 /
+          mass_quadrotor_;
+  // std::cout << "desired control" << current_control.transpose() << std::endl;
+  current_state << state[0], state[1], state[2], state[6], state[7], state[8],
+      state[3], state[4], state[5];
+  // std::cout << "current state" << current_state.transpose() << std::endl;
+
+  Eigen::VectorXd k1 = dyn_function_eigen(current_state, current_control);
+  Eigen::VectorXd k2 =
+      dyn_function_eigen(current_state + dt_ / 2.0 * k1, current_control);
+  Eigen::VectorXd k3 =
+      dyn_function_eigen(current_state + dt_ / 2.0 * k2, current_control);
+  Eigen::VectorXd k4 = dyn_function_eigen(state + dt_ * k3, current_control);
+
+  current_state += dt_ / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4);
+  // std::cout << "new_state after rk4 " << current_state.transpose() << std::endl;
+  state[0] = current_state[0];
+  state[1] = current_state[1];
+  state[2] = current_state[2];
+  state[3] = current_state[6];
+  state[4] = current_state[7];
+  state[5] = current_state[8];
+  state[6] = current_state[3];
+  state[7] = current_state[4];
+  state[8] = current_state[5];
+  // std::cout << state.transpose() << std::endl;
+  // state = current_state();
+  guessed_state(Eigen::all, Eigen::seqN(0, guessed_state.cols() - 1)) =
+      guessed_state(Eigen::all, Eigen::seqN(1, guessed_state.cols()));
+  guessed_control(Eigen::all, Eigen::seqN(0, guessed_control.cols() - 1)) =
+      guessed_control(Eigen::all, Eigen::seqN(1, guessed_control.cols()));
 }

@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2023-01-09 17:40:21
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-02-08 17:54:06
+ * @LastEditTime: 2023-02-09 17:53:46
  * @Note: Note
  */
 
@@ -130,7 +130,7 @@ void MPCQuadrotor::initialization_formulation() {
   casadi::Dict solver_opts;
   solver_opts["expand"] = true;
   solver_opts["ipopt.max_iter"] = 100;
-  solver_opts["ipopt.print_level"] = 3;
+  solver_opts["ipopt.print_level"] = 0;
   solver_opts["print_time"] = 0;
   solver_opts["ipopt.acceptable_tol"] = 1e-8;
   solver_opts["ipopt.acceptable_obj_change_tol"] = 1e-6;
@@ -170,7 +170,7 @@ void MPCQuadrotor::get_results(std::vector<double> init_value,
   ca::DMDict arg = {{"lbx", lbx},       {"ubx", ubx},
                     {"lbg", 0.0},       {"ubg", 0.0},
                     {"x0", init_value}, {"p", desired_trajectory}};
-
+  // std::cout << desired_trajectory << std::endl;
   opt_results_ = solver_(arg);
 
   std::vector<double> result_all(opt_results_.at("x"));
@@ -191,12 +191,14 @@ void MPCQuadrotor::model_based_movement(Eigen::VectorXd &state,
                                         Eigen::VectorXd control,
                                         Eigen::MatrixXd &guessed_state,
                                         Eigen::MatrixXd &guessed_control) {
-  Eigen::VectorXd k1 = dyn_function_eigen(state, control);
+  Eigen::VectorXd k1 =
+      dyn_function_eigen(state, control);
   Eigen::VectorXd k2 = dyn_function_eigen(state + dt_ / 2.0 * k1, control);
   Eigen::VectorXd k3 = dyn_function_eigen(state + dt_ / 2.0 * k2, control);
   Eigen::VectorXd k4 = dyn_function_eigen(state + dt_ * k3, control);
   state +=
       dt_ / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4);
+  // std::cout << state.transpose() << std::endl;
   guessed_state(Eigen::all, Eigen::seqN(0, guessed_state.cols() - 1)) =
       guessed_state(Eigen::all, Eigen::seqN(1, guessed_state.cols() ));
   guessed_control(Eigen::all, Eigen::seqN(0, guessed_control.cols() - 1)) =

@@ -2,7 +2,7 @@
  * @Author: Wei Luo
  * @Date: 2023-01-06 21:14:04
  * @LastEditors: Wei Luo
- * @LastEditTime: 2023-02-07 08:41:38
+ * @LastEditTime: 2023-02-09 17:56:00
  * @Note: Note
  */
 
@@ -40,7 +40,7 @@ int main() {
   mpc_quadrotor_handle->initialization_formulation();
 
   Eigen::VectorXd current_state(9);
-  current_state << 0, 0, 0.2, 0, 0, 0, 0, 0, 0;
+  current_state << 0, 0, 0.1, 0, 0, 0, 0, 0, 0;
   Eigen::MatrixXd init_trajectory(9, 20);
   init_trajectory.block<9, 1>(0, 0) << 0, 0, 0.2, 0, 0, 0, 0, 0, 0;
   init_trajectory.block<9, 1>(0, 1) << 0, 0, 0.4, 0, 0, 0.01, 0, 0, 0;
@@ -99,6 +99,7 @@ int main() {
         ref_trajectory.data(), ref_trajectory.data() + ref_trajectory.size());
     mpc_quadrotor_handle->get_results(opt_init, ref_trajectory_std, opt_x,
                                       opt_u);
+    // std::cout << opt_x.transpose() << std::endl;
     mpc_quadrotor_handle->model_based_movement(current_state, opt_u.col(0),
                                                opt_x, opt_u);
 
